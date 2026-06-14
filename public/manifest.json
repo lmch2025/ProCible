@@ -1,0 +1,28 @@
+{
+  "name": "Hermes — Assistant de prospection",
+  "short_name": "Hermes",
+  "description": "Votre assistant personnel de prospection. Trouve des clients pour vous chaque nuit.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FFFAF7",
+  "theme_color": "#FF7B54",
+  "orientation": "portrait",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "fr",
+  "dir": "ltr"
+}
