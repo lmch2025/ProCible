@@ -116,3 +116,14 @@ model AppSettings {
   description           String?
   updatedAt             DateTime @updatedAt
 }
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // create, update, delete, login, export, bulk
+  entity      String   // user, lead, campaign, notification, settings, credit, admin
+  entityId    String?
+  adminEmail  String
+  details     String?  // JSON string with change details
+  ip          String?
+  createdAt   DateTime @default(now())
+}

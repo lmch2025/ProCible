@@ -1,0 +1,1135 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useState, useEffect, useCallback, useRef } from 'react'
+     4→     4→import { motion, AnimatePresence } from 'framer-motion'
+     5→     5→import {
+     6→     6→  LayoutDashboard, Users, Contact, Megaphone, Coins,
+     7→     7→  Bell, Settings, Search, ChevronRight, Shield, Menu, X,
+     8→     8→  TrendingUp, UserPlus, Phone, MapPin, Calendar, Zap,
+     9→     9→  ArrowUpRight, ArrowDownRight, Eye, Trash2, Edit3, Check,
+    10→    10→  AlertTriangle, BarChart3, Clock, Send, Plus, Minus
+    11→    11→} from 'lucide-react'
+    12→    12→import { toast } from 'sonner'
+    13→    13→
+    14→    14→type AdminTab = 'dashboard' | 'users' | 'leads' | 'campaigns' | 'credits' | 'notifications' | 'settings'
+    15→    15→
+    16→    16→const tabs: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
+    17→    17→  { id: 'dashboard', label: 'Stats', icon: LayoutDashboard },
+    18→    18→  { id: 'users', label: 'Utilisateurs', icon: Users },
+    19→    19→  { id: 'leads', label: 'Clients', icon: Contact },
+    20→    20→  { id: 'campaigns', label: 'Campagnes', icon: Megaphone },
+    21→    21→  { id: 'credits', label: 'Crédits', icon: Coins },
+    22→    22→  { id: 'notifications', label: 'Alertes', icon: Bell },
+    23→    23→  { id: 'settings', label: 'Config', icon: Settings },
+    24→    24→]
+    25→    25→
+    26→    26→export default function AdminPanel() {
+    27→    27→  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
+    28→    28→  const [sidebarOpen, setSidebarOpen] = useState(false)
+    29→    29→
+    30→    30→  return (
+    31→    31→    <div className="min-h-screen bg-gray-50 flex flex-col">
+    32→    32→      {/* Top header */}
+    33→    33→      <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    34→    34→        <div className="flex items-center justify-between px-4 py-3">
+    35→    35→          <div className="flex items-center gap-3">
+    36→    36→            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden p-2 rounded-xl hover:bg-gray-100">
+    37→    37→              <Menu className="w-5 h-5 text-gray-600" />
+    38→    38→            </button>
+    39→    39→            <div>
+    40→    40→              <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+    41→    41→                <Shield className="w-5 h-5 text-[#FF7B54]" />
+    42→    42→                ProCible Admin
+    43→    43→              </h1>
+    44→    44→            </div>
+    45→    45→          </div>
+    46→    46→          <div className="flex items-center gap-2">
+    47→    47→            <span className="hidden sm:inline text-xs text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
+    48→    48→              Panel Administration
+    49→    49→            </span>
+    50→    50→            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white text-xs font-bold">
+    51→    51→              A
+    52→    52→            </div>
+    53→    53→          </div>
+    54→    54→        </div>
+    55→    55→      </header>
+    56→    56→
+    57→    57→      <div className="flex flex-1 overflow-hidden">
+    58→    58→        {/* Desktop sidebar */}
+    59→    59→        <aside className="hidden lg:flex flex-col w-56 bg-white border-r border-gray-200 overflow-y-auto">
+    60→    60→          <nav className="flex-1 py-4 px-3 space-y-1">
+    61→    61→            {tabs.map(tab => (
+    62→    62→              <button
+    63→    63→                key={tab.id}
+    64→    64→                onClick={() => setActiveTab(tab.id)}
+    65→    65→                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+    66→    66→                  activeTab === tab.id
+    67→    67→                    ? 'bg-gradient-to-r from-[#FF7B54]/10 to-[#6C3FA9]/10 text-[#FF7B54]'
+    68→    68→                    : 'text-gray-600 hover:bg-gray-100'
+    69→    69→                }`}
+    70→    70→              >
+    71→    71→                <tab.icon className="w-4.5 h-4.5" />
+    72→    72→                {tab.label}
+    73→    73→              </button>
+    74→    74→            ))}
+    75→    75→          </nav>
+    76→    76→        </aside>
+    77→    77→
+    78→    78→        {/* Mobile sidebar overlay */}
+    79→    79→        <AnimatePresence>
+    80→    80→          {sidebarOpen && (
+    81→    81→            <>
+    82→    82→              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+    83→    83→              <motion.aside initial={{ x: -280 }} animate={{ x: 0 }} exit={{ x: -280 }} transition={{ type: 'spring', damping: 25, stiffness: 300 }} className="fixed left-0 top-0 bottom-0 w-72 bg-white z-50 shadow-xl lg:hidden">
+    84→    84→                <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
+    85→    85→                  <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+    86→    86→                    <Shield className="w-5 h-5 text-[#FF7B54]" />
+    87→    87→                    Admin
+    88→    88→                  </h2>
+    89→    89→                  <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-xl hover:bg-gray-100">
+    90→    90→                    <X className="w-5 h-5" />
+    91→    91→                  </button>
+    92→    92→                </div>
+    93→    93→                <nav className="py-4 px-3 space-y-1">
+    94→    94→                  {tabs.map(tab => (
+    95→    95→                    <button
+    96→    96→                      key={tab.id}
+    97→    97→                      onClick={() => { setActiveTab(tab.id); setSidebarOpen(false) }}
+    98→    98→                      className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all ${
+    99→    99→                        activeTab === tab.id
+   100→   100→                          ? 'bg-gradient-to-r from-[#FF7B54]/10 to-[#6C3FA9]/10 text-[#FF7B54]'
+   101→   101→                          : 'text-gray-600 hover:bg-gray-100'
+   102→   102→                      }`}
+   103→   103→                    >
+   104→   104→                      <tab.icon className="w-5 h-5" />
+   105→   105→                      {tab.label}
+   106→   106→                    </button>
+   107→   107→                  ))}
+   108→   108→                </nav>
+   109→   109→              </motion.aside>
+   110→   110→            </>
+   111→   111→          )}
+   112→   112→        </AnimatePresence>
+   113→   113→
+   114→   114→        {/* Main content */}
+   115→   115→        <main className="flex-1 overflow-y-auto pb-20 lg:pb-6">
+   116→   116→          <AnimatePresence mode="wait">
+   117→   117→            <motion.div key={activeTab} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }}>
+   118→   118→              {activeTab === 'dashboard' && <DashboardTab />}
+   119→   119→              {activeTab === 'users' && <UsersTab />}
+   120→   120→              {activeTab === 'leads' && <LeadsTab />}
+   121→   121→              {activeTab === 'campaigns' && <CampaignsTab />}
+   122→   122→              {activeTab === 'credits' && <CreditsTab />}
+   123→   123→              {activeTab === 'notifications' && <NotificationsTab />}
+   124→   124→              {activeTab === 'settings' && <SettingsTab />}
+   125→   125→            </motion.div>
+   126→   126→          </AnimatePresence>
+   127→   127→        </main>
+   128→   128→      </div>
+   129→   129→
+   130→   130→      {/* Mobile bottom navigation */}
+   131→   131→      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-xl border-t border-gray-200 pb-safe">
+   132→   132→        <div className="flex items-center justify-around py-1.5">
+   133→   133→          {tabs.slice(0, 5).map(tab => (
+   134→   134→            <button
+   135→   135→              key={tab.id}
+   136→   136→              onClick={() => setActiveTab(tab.id)}
+   137→   137→              className={`flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-[56px] rounded-xl transition-all ${
+   138→   138→                activeTab === tab.id ? 'text-[#FF7B54]' : 'text-gray-400'
+   139→   139→              }`}
+   140→   140→            >
+   141→   141→              <tab.icon className="w-5 h-5" strokeWidth={activeTab === tab.id ? 2.5 : 1.5} />
+   142→   142→              <span className="text-[10px] font-medium">{tab.label}</span>
+   143→   143→            </button>
+   144→   144→          ))}
+   145→   145→          {/* More button */}
+   146→   146→          <button
+   147→   147→            onClick={() => setSidebarOpen(true)}
+   148→   148→            className="flex flex-col items-center gap-0.5 py-1.5 px-2 min-w-[56px] rounded-xl text-gray-400"
+   149→   149→          >
+   150→   150→            <Menu className="w-5 h-5" strokeWidth={1.5} />
+   151→   151→            <span className="text-[10px] font-medium">Plus</span>
+   152→   152→          </button>
+   153→   153→        </div>
+   154→   154→      </nav>
+   155→   155→    </div>
+   156→   156→  )
+   157→   157→}
+   158→   158→
+   159→   159→/* ==================== DASHBOARD TAB ==================== */
+   160→   160→function DashboardTab() {
+   161→   161→  const [stats, setStats] = useState<any>(null)
+   162→   162→  const [loading, setLoading] = useState(true)
+   163→   163→
+   164→   164→  const initialized = useRef(false)
+   165→   165→  useEffect(() => {
+   166→   166→    if (initialized.current) return
+   167→   167→    initialized.current = true
+   168→   168→    let cancelled = false
+   169→   169→    ;(async () => {
+   170→   170→      try {
+   171→   171→        const res = await fetch('/admin/api/stats')
+   172→   172→        const d = await res.json()
+   173→   173→        if (!cancelled) { setStats(d); setLoading(false) }
+   174→   174→      } catch { if (!cancelled) setLoading(false) }
+   175→   175→    })()
+   176→   176→    return () => { cancelled = true }
+   177→   177→  }, [])
+   178→   178→
+   179→   179→  if (loading || !stats) return <LoadingSkeleton />
+   180→   180→
+   181→   181→  const statCards = [
+   182→   182→    { label: 'Utilisateurs', value: stats.users.total, sub: `+${stats.users.recentSignups} cette semaine`, icon: Users, color: 'from-[#FF7B54] to-[#FFB347]', trend: 'up' },
+   183→   183→    { label: 'Clients', value: stats.leads.total, sub: `+${stats.leads.recentLeads} cette semaine`, icon: Contact, color: 'from-[#6C3FA9] to-[#FF7B54]', trend: 'up' },
+   184→   184→    { label: 'Campagnes actives', value: stats.campaigns.active, sub: `${stats.campaigns.total} au total`, icon: Megaphone, color: 'from-[#2EC4B6] to-[#4CAF50]', trend: 'neutral' },
+   185→   185→    { label: 'Score moyen', value: stats.leads.avgScore, sub: 'sur 100', icon: BarChart3, color: 'from-[#FFB347] to-[#FF7B54]', trend: stats.leads.avgScore >= 50 ? 'up' : 'down' },
+   186→   186→  ]
+   187→   187→
+   188→   188→  return (
+   189→   189→    <div className="p-4 space-y-5">
+   190→   190→      <div>
+   191→   191→        <h2 className="text-xl font-bold text-gray-900">Vue d&apos;ensemble</h2>
+   192→   192→        <p className="text-sm text-gray-500">Tableau de bord ProCible</p>
+   193→   193→      </div>
+   194→   194→
+   195→   195→      {/* KPI cards */}
+   196→   196→      <div className="grid grid-cols-2 gap-3">
+   197→   197→        {statCards.map(card => (
+   198→   198→          <motion.div key={card.label} initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   199→   199→            <div className="flex items-center justify-between mb-3">
+   200→   200→              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center`}>
+   201→   201→                <card.icon className="w-4.5 h-4.5 text-white" />
+   202→   202→              </div>
+   203→   203→              {card.trend === 'up' ? <ArrowUpRight className="w-4 h-4 text-green-500" /> : card.trend === 'down' ? <ArrowDownRight className="w-4 h-4 text-red-500" /> : null}
+   204→   204→            </div>
+   205→   205→            <p className="text-2xl font-bold text-gray-900">{card.value}</p>
+   206→   206→            <p className="text-[11px] text-gray-500 mt-0.5">{card.sub}</p>
+   207→   207→          </motion.div>
+   208→   208→        ))}
+   209→   209→      </div>
+   210→   210→
+   211→   211→      {/* Plans distribution */}
+   212→   212→      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   213→   213→        <h3 className="text-sm font-semibold text-gray-900 mb-3">Distribution des plans</h3>
+   214→   214→        <div className="space-y-3">
+   215→   215→          {[
+   216→   216→            { label: 'Gratuit', count: stats.users.plans.free, color: 'bg-gray-400', total: stats.users.total },
+   217→   217→            { label: 'Starter', count: stats.users.plans.starter, color: 'bg-[#FF7B54]', total: stats.users.total },
+   218→   218→            { label: 'Pro', count: stats.users.plans.pro, color: 'bg-[#6C3FA9]', total: stats.users.total },
+   219→   219→          ].map(p => (
+   220→   220→            <div key={p.label}>
+   221→   221→              <div className="flex items-center justify-between text-xs mb-1">
+   222→   222→                <span className="text-gray-600">{p.label}</span>
+   223→   223→                <span className="font-semibold">{p.count} ({p.total > 0 ? Math.round(p.count / p.total * 100) : 0}%)</span>
+   224→   224→              </div>
+   225→   225→              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+   226→   226→                <div className={`h-full ${p.color} rounded-full transition-all`} style={{ width: `${p.total > 0 ? (p.count / p.total * 100) : 0}%` }} />
+   227→   227→              </div>
+   228→   228→            </div>
+   229→   229→          ))}
+   230→   230→        </div>
+   231→   231→      </div>
+   232→   232→
+   233→   233→      {/* Lead stages distribution */}
+   234→   234→      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   235→   235→        <h3 className="text-sm font-semibold text-gray-900 mb-3">Pipeline clients</h3>
+   236→   236→        <div className="grid grid-cols-3 gap-2">
+   237→   237→          {[
+   238→   238→            { stage: 'nouveau', label: 'Nouveau', color: 'text-[#FF7B54] bg-[#FF7B54]/10' },
+   239→   239→            { stage: 'contacte', label: 'Contacté', color: 'text-[#2EC4B6] bg-[#2EC4B6]/10' },
+   240→   240→            { stage: 'en_discussion', label: 'En discussion', color: 'text-[#6C3FA9] bg-[#6C3FA9]/10' },
+   241→   241→            { stage: 'a_relancer', label: 'À relancer', color: 'text-[#FFB347] bg-[#FFB347]/10' },
+   242→   242→            { stage: 'gagne', label: 'Gagné', color: 'text-[#4CAF50] bg-[#4CAF50]/10' },
+   243→   243→            { stage: 'perdu', label: 'Perdu', color: 'text-[#EF4444] bg-[#EF4444]/10' },
+   244→   244→          ].map(s => (
+   245→   245→            <div key={s.stage} className={`rounded-xl p-3 text-center ${s.color}`}>
+   246→   246→              <p className="text-lg font-bold">{stats.leads.stages[s.stage] || 0}</p>
+   247→   247→              <p className="text-[10px] font-medium">{s.label}</p>
+   248→   248→            </div>
+   249→   249→          ))}
+   250→   250→        </div>
+   251→   251→      </div>
+   252→   252→
+   253→   253→      {/* Sources distribution */}
+   254→   254→      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   255→   255→        <h3 className="text-sm font-semibold text-gray-900 mb-3">Sources des clients</h3>
+   256→   256→        <div className="grid grid-cols-2 gap-2">
+   257→   257→          {Object.entries(stats.leads.sources).map(([source, count]) => (
+   258→   258→            <div key={source} className="flex items-center gap-2 bg-gray-50 rounded-xl p-2.5">
+   259→   259→              <MapPin className="w-4 h-4 text-gray-400" />
+   260→   260→              <div>
+   261→   261→                <p className="text-sm font-semibold">{count as number}</p>
+   262→   262→                <p className="text-[10px] text-gray-500 capitalize">{source}</p>
+   263→   263→              </div>
+   264→   264→            </div>
+   265→   265→          ))}
+   266→   266→        </div>
+   267→   267→      </div>
+   268→   268→
+   269→   269→      {/* Quick stats row */}
+   270→   270→      <div className="grid grid-cols-2 gap-3">
+   271→   271→        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   272→   272→          <div className="flex items-center gap-2 mb-2">
+   273→   273→            <Coins className="w-4 h-4 text-[#FFB347]" />
+   274→   274→            <span className="text-xs text-gray-500">Crédits totaux</span>
+   275→   275→          </div>
+   276→   276→          <p className="text-xl font-bold">{stats.users.totalCredits}</p>
+   277→   277→        </div>
+   278→   278→        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   279→   279→          <div className="flex items-center gap-2 mb-2">
+   280→   280→            <Bell className="w-4 h-4 text-[#6C3FA9]" />
+   281→   281→            <span className="text-xs text-gray-500">Non lues</span>
+   282→   282→          </div>
+   283→   283→          <p className="text-xl font-bold">{stats.notifications.unread}</p>
+   284→   284→        </div>
+   285→   285→      </div>
+   286→   286→    </div>
+   287→   287→  )
+   288→   288→}
+   289→   289→
+   290→   290→/* ==================== USERS TAB ==================== */
+   291→   291→function UsersTab() {
+   292→   292→  const [users, setUsers] = useState<any[]>([])
+   293→   293→  const [total, setTotal] = useState(0)
+   294→   294→  const [page, setPage] = useState(1)
+   295→   295→  const [search, setSearch] = useState('')
+   296→   296→  const [planFilter, setPlanFilter] = useState('')
+   297→   297→  const [loading, setLoading] = useState(true)
+   298→   298→  const [editingUser, setEditingUser] = useState<any>(null)
+   299→   299→  const [editForm, setEditForm] = useState({ plan: '', credits: 0, name: '' })
+   300→   300→
+   301→   301→  const fetchUsers = useCallback(async () => {
+   302→   302→    setLoading(true)
+   303→   303→    const params = new URLSearchParams({ page: String(page), limit: '20', search, plan: planFilter })
+   304→   304→    const res = await fetch(`/admin/api/users?${params}`)
+   305→   305→    const data = await res.json()
+   306→   306→    setUsers(data.users || [])
+   307→   307→    setTotal(data.total || 0)
+   308→   308→    setLoading(false)
+   309→   309→  }, [page, search, planFilter])
+   310→   310→
+   311→   311→  const usersInit = useRef(false)
+   312→   312→  useEffect(() => {
+   313→   313→    if (usersInit.current) return
+   314→   314→    usersInit.current = true
+   315→   315→    let cancelled = false
+   316→   316→    ;(async () => {
+   317→   317→      setLoading(true)
+   318→   318→      try {
+   319→   319→        const params = new URLSearchParams({ page: String(page), limit: '20', search, plan: planFilter })
+   320→   320→        const res = await fetch(`/admin/api/users?${params}`)
+   321→   321→        const data = await res.json()
+   322→   322→        if (!cancelled) { setUsers(data.users || []); setTotal(data.total || 0); setLoading(false) }
+   323→   323→      } catch { if (!cancelled) setLoading(false) }
+   324→   324→    })()
+   325→   325→    return () => { cancelled = true }
+   326→   326→  }, [page, search, planFilter])
+   327→   327→
+   328→   328→  const startEdit = (user: any) => {
+   329→   329→    setEditingUser(user.id)
+   330→   330→    setEditForm({ plan: user.plan, credits: user.credits, name: user.name || '' })
+   331→   331→  }
+   332→   332→
+   333→   333→  const saveEdit = async () => {
+   334→   334→    await fetch('/admin/api/users', {
+   335→   335→      method: 'PATCH',
+   336→   336→      headers: { 'Content-Type': 'application/json' },
+   337→   337→      body: JSON.stringify({ id: editingUser, ...editForm }),
+   338→   338→    })
+   339→   339→    toast.success('Utilisateur mis à jour')
+   340→   340→    setEditingUser(null)
+   341→   341→    fetchUsers()
+   342→   342→  }
+   343→   343→
+   344→   344→  const deleteUser = async (id: string) => {
+   345→   345→    if (!confirm('Supprimer cet utilisateur ?')) return
+   346→   346→    await fetch(`/admin/api/users?id=${id}`, { method: 'DELETE' })
+   347→   347→    toast.success('Utilisateur supprimé')
+   348→   348→    fetchUsers()
+   349→   349→  }
+   350→   350→
+   351→   351→  const totalPages = Math.ceil(total / 20)
+   352→   352→
+   353→   353→  return (
+   354→   354→    <div className="p-4 space-y-4">
+   355→   355→      <div>
+   356→   356→        <h2 className="text-xl font-bold text-gray-900">Utilisateurs</h2>
+   357→   357→        <p className="text-sm text-gray-500">{total} inscrits</p>
+   358→   358→      </div>
+   359→   359→
+   360→   360→      {/* Search + filter */}
+   361→   361→      <div className="flex gap-2">
+   362→   362→        <div className="flex-1 relative">
+   363→   363→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+   364→   364→          <input
+   365→   365→            value={search}
+   366→   366→            onChange={e => { setSearch(e.target.value); setPage(1) }}
+   367→   367→            placeholder="Rechercher..."
+   368→   368→            className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30 focus:border-[#FF7B54]"
+   369→   369→          />
+   370→   370→        </div>
+   371→   371→        <select
+   372→   372→          value={planFilter}
+   373→   373→          onChange={e => { setPlanFilter(e.target.value); setPage(1) }}
+   374→   374→          className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
+   375→   375→        >
+   376→   376→          <option value="">Tous plans</option>
+   377→   377→          <option value="free">Gratuit</option>
+   378→   378→          <option value="starter">Starter</option>
+   379→   379→          <option value="pro">Pro</option>
+   380→   380→        </select>
+   381→   381→      </div>
+   382→   382→
+   383→   383→      {/* Users list */}
+   384→   384→      {loading ? <LoadingSkeleton /> : (
+   385→   385→        <div className="space-y-2">
+   386→   386→          {users.map((user: any) => (
+   387→   387→            <div key={user.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   388→   388→              {editingUser === user.id ? (
+   389→   389→                <div className="space-y-3">
+   390→   390→                  <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} className="w-full px-3 py-2 border rounded-xl text-sm" placeholder="Nom" />
+   391→   391→                  <div className="flex gap-2">
+   392→   392→                    <select value={editForm.plan} onChange={e => setEditForm(f => ({ ...f, plan: e.target.value }))} className="flex-1 px-3 py-2 border rounded-xl text-sm">
+   393→   393→                      <option value="free">Gratuit</option>
+   394→   394→                      <option value="starter">Starter</option>
+   395→   395→                      <option value="pro">Pro</option>
+   396→   396→                    </select>
+   397→   397→                    <input type="number" value={editForm.credits} onChange={e => setEditForm(f => ({ ...f, credits: parseInt(e.target.value) || 0 }))} className="w-20 px-3 py-2 border rounded-xl text-sm" />
+   398→   398→                  </div>
+   399→   399→                  <div className="flex gap-2">
+   400→   400→                    <button onClick={saveEdit} className="flex-1 py-2 bg-[#4CAF50] text-white rounded-xl text-sm font-medium flex items-center justify-center gap-1"><Check className="w-4 h-4" />Sauver</button>
+   401→   401→                    <button onClick={() => setEditingUser(null)} className="flex-1 py-2 bg-gray-100 rounded-xl text-sm font-medium">Annuler</button>
+   402→   402→                  </div>
+   403→   403→                </div>
+   404→   404→              ) : (
+   405→   405→                <div className="flex items-center gap-3">
+   406→   406→                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white font-bold text-sm">
+   407→   407→                    {(user.name || user.phone || 'U').charAt(0).toUpperCase()}
+   408→   408→                  </div>
+   409→   409→                  <div className="flex-1 min-w-0">
+   410→   410→                    <p className="font-semibold text-sm text-gray-900 truncate">{user.name || 'Sans nom'}</p>
+   411→   411→                    <p className="text-xs text-gray-500 truncate">{user.phone}</p>
+   412→   412→                  </div>
+   413→   413→                  <div className="flex items-center gap-1.5 shrink-0">
+   414→   414→                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+   415→   415→                      user.plan === 'pro' ? 'bg-[#6C3FA9]/10 text-[#6C3FA9]' :
+   416→   416→                      user.plan === 'starter' ? 'bg-[#FF7B54]/10 text-[#FF7B54]' :
+   417→   417→                      'bg-gray-100 text-gray-500'
+   418→   418→                    }`}>{user.plan}</span>
+   419→   419→                    <span className="text-[10px] text-gray-400">{user.credits}cr</span>
+   420→   420→                  </div>
+   421→   421→                  <div className="flex items-center gap-1">
+   422→   422→                    <button onClick={() => startEdit(user)} className="p-1.5 rounded-lg hover:bg-gray-100"><Edit3 className="w-3.5 h-3.5 text-gray-400" /></button>
+   423→   423→                    <button onClick={() => deleteUser(user.id)} className="p-1.5 rounded-lg hover:bg-red-50"><Trash2 className="w-3.5 h-3.5 text-red-400" /></button>
+   424→   424→                  </div>
+   425→   425→                </div>
+   426→   426→              )}
+   427→   427→              <div className="flex items-center gap-4 mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-400">
+   428→   428→                <span className="flex items-center gap-1"><Contact className="w-3 h-3" />{user._count?.leads || 0} clients</span>
+   429→   429→                <span className="flex items-center gap-1"><Megaphone className="w-3 h-3" />{user._count?.campaigns || 0} camp.</span>
+   430→   430→                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(user.createdAt).toLocaleDateString('fr-FR')}</span>
+   431→   431→              </div>
+   432→   432→            </div>
+   433→   433→          ))}
+   434→   434→        </div>
+   435→   435→      )}
+   436→   436→
+   437→   437→      {/* Pagination */}
+   438→   438→      {totalPages > 1 && <Pagination page={page} totalPages={totalPages} setPage={setPage} />}
+   439→   439→    </div>
+   440→   440→  )
+   441→   441→}
+   442→   442→
+   443→   443→/* ==================== LEADS TAB ==================== */
+   444→   444→function LeadsTab() {
+   445→   445→  const [leads, setLeads] = useState<any[]>([])
+   446→   446→  const [total, setTotal] = useState(0)
+   447→   447→  const [page, setPage] = useState(1)
+   448→   448→  const [search, setSearch] = useState('')
+   449→   449→  const [stageFilter, setStageFilter] = useState('')
+   450→   450→  const [loading, setLoading] = useState(true)
+   451→   451→
+   452→   452→  const fetchLeads = useCallback(async () => {
+   453→   453→    setLoading(true)
+   454→   454→    const params = new URLSearchParams({ page: String(page), limit: '20', search, stage: stageFilter })
+   455→   455→    const res = await fetch(`/admin/api/leads?${params}`)
+   456→   456→    const data = await res.json()
+   457→   457→    setLeads(data.leads || [])
+   458→   458→    setTotal(data.total || 0)
+   459→   459→    setLoading(false)
+   460→   460→  }, [page, search, stageFilter])
+   461→   461→
+   462→   462→  const leadsInit = useRef(false)
+   463→   463→  useEffect(() => {
+   464→   464→    if (leadsInit.current) return
+   465→   465→    leadsInit.current = true
+   466→   466→    let cancelled = false
+   467→   467→    ;(async () => {
+   468→   468→      setLoading(true)
+   469→   469→      try {
+   470→   470→        const params = new URLSearchParams({ page: String(page), limit: '20', search, stage: stageFilter })
+   471→   471→        const res = await fetch(`/admin/api/leads?${params}`)
+   472→   472→        const data = await res.json()
+   473→   473→        if (!cancelled) { setLeads(data.leads || []); setTotal(data.total || 0); setLoading(false) }
+   474→   474→      } catch { if (!cancelled) setLoading(false) }
+   475→   475→    })()
+   476→   476→    return () => { cancelled = true }
+   477→   477→  }, [page, search, stageFilter])
+   478→   478→
+   479→   479→  const updateStage = async (id: string, stage: string) => {
+   480→   480→    await fetch('/admin/api/leads', {
+   481→   481→      method: 'PATCH',
+   482→   482→      headers: { 'Content-Type': 'application/json' },
+   483→   483→      body: JSON.stringify({ id, stage }),
+   484→   484→    })
+   485→   485→    toast.success('Statut mis à jour')
+   486→   486→    fetchLeads()
+   487→   487→  }
+   488→   488→
+   489→   489→  const deleteLead = async (id: string) => {
+   490→   490→    if (!confirm('Supprimer ce client ?')) return
+   491→   491→    await fetch(`/admin/api/leads?id=${id}`, { method: 'DELETE' })
+   492→   492→    toast.success('Client supprimé')
+   493→   493→    fetchLeads()
+   494→   494→  }
+   495→   495→
+   496→   496→  const stageColors: Record<string, string> = {
+   497→   497→    nouveau: 'bg-[#FF7B54]/10 text-[#FF7B54]',
+   498→   498→    contacte: 'bg-[#2EC4B6]/10 text-[#2EC4B6]',
+   499→   499→    en_discussion: 'bg-[#6C3FA9]/10 text-[#6C3FA9]',
+   500→   500→    a_relancer: 'bg-[#FFB347]/10 text-[#FFB347]',
+   501→   501→    gagne: 'bg-[#4CAF50]/10 text-[#4CAF50]',
+   502→   502→    perdu: 'bg-[#EF4444]/10 text-[#EF4444]',
+   503→   503→  }
+   504→   504→
+   505→   505→  const stageLabels: Record<string, string> = {
+   506→   506→    nouveau: 'Nouveau', contacte: 'Contacté', en_discussion: 'Discussion',
+   507→   507→    a_relancer: 'Relancer', gagne: 'Gagné', perdu: 'Perdu',
+   508→   508→  }
+   509→   509→
+   510→   510→  return (
+   511→   511→    <div className="p-4 space-y-4">
+   512→   512→      <div>
+   513→   513→        <h2 className="text-xl font-bold text-gray-900">Clients</h2>
+   514→   514→        <p className="text-sm text-gray-500">{total} au total</p>
+   515→   515→      </div>
+   516→   516→
+   517→   517→      <div className="flex gap-2">
+   518→   518→        <div className="flex-1 relative">
+   519→   519→          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+   520→   520→          <input value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} placeholder="Rechercher..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30" />
+   521→   521→        </div>
+   522→   522→        <select value={stageFilter} onChange={e => { setStageFilter(e.target.value); setPage(1) }} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none">
+   523→   523→          <option value="">Tous</option>
+   524→   524→          {Object.entries(stageLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+   525→   525→        </select>
+   526→   526→      </div>
+   527→   527→
+   528→   528→      {loading ? <LoadingSkeleton /> : (
+   529→   529→        <div className="space-y-2">
+   530→   530→          {leads.map((lead: any) => (
+   531→   531→            <div key={lead.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   532→   532→              <div className="flex items-center gap-3">
+   533→   533→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white font-bold text-sm">
+   534→   534→                  {lead.name.charAt(0)}
+   535→   535→                </div>
+   536→   536→                <div className="flex-1 min-w-0">
+   537→   537→                  <p className="font-semibold text-sm text-gray-900 truncate">{lead.name}</p>
+   538→   538→                  <p className="text-xs text-gray-500 truncate">{lead.business || lead.sector || ''} {lead.city ? `· ${lead.city}` : ''}</p>
+   539→   539→                </div>
+   540→   540→                <div className="text-right shrink-0">
+   541→   541→                  <p className="text-sm font-bold">{lead.score}</p>
+   542→   542→                  <p className="text-[10px] text-gray-400">score</p>
+   543→   543→                </div>
+   544→   544→              </div>
+   545→   545→              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50">
+   546→   546→                <select
+   547→   547→                  value={lead.stage}
+   548→   548→                  onChange={e => updateStage(lead.id, e.target.value)}
+   549→   549→                  className={`px-2 py-1 rounded-lg text-[11px] font-semibold ${stageColors[lead.stage] || 'bg-gray-100 text-gray-600'}`}
+   550→   550→                >
+   551→   551→                  {Object.entries(stageLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+   552→   552→                </select>
+   553→   553→                <div className="flex items-center gap-2 text-[10px] text-gray-400">
+   554→   554→                  <span>{lead._count?.contacts || 0} contacts</span>
+   555→   555→                  <span>· {lead.source}</span>
+   556→   556→                  {lead.user && <span>· {lead.user.name || lead.user.phone}</span>}
+   557→   557→                  <button onClick={() => deleteLead(lead.id)} className="p-1 rounded hover:bg-red-50"><Trash2 className="w-3 h-3 text-red-400" /></button>
+   558→   558→                </div>
+   559→   559→              </div>
+   560→   560→            </div>
+   561→   561→          ))}
+   562→   562→        </div>
+   563→   563→      )}
+   564→   564→
+   565→   565→      {Math.ceil(total / 20) > 1 && <Pagination page={page} totalPages={Math.ceil(total / 20)} setPage={setPage} />}
+   566→   566→    </div>
+   567→   567→  )
+   568→   568→}
+   569→   569→
+   570→   570→/* ==================== CAMPAIGNS TAB ==================== */
+   571→   571→function CampaignsTab() {
+   572→   572→  const [campaigns, setCampaigns] = useState<any[]>([])
+   573→   573→  const [total, setTotal] = useState(0)
+   574→   574→  const [page, setPage] = useState(1)
+   575→   575→  const [statusFilter, setStatusFilter] = useState('')
+   576→   576→  const [loading, setLoading] = useState(true)
+   577→   577→
+   578→   578→  const fetchCampaigns = useCallback(async () => {
+   579→   579→    setLoading(true)
+   580→   580→    const params = new URLSearchParams({ page: String(page), limit: '20', status: statusFilter })
+   581→   581→    const res = await fetch(`/admin/api/campaigns?${params}`)
+   582→   582→    const data = await res.json()
+   583→   583→    setCampaigns(data.campaigns || [])
+   584→   584→    setTotal(data.total || 0)
+   585→   585→    setLoading(false)
+   586→   586→  }, [page, statusFilter])
+   587→   587→
+   588→   588→  const campsInit = useRef(false)
+   589→   589→  useEffect(() => {
+   590→   590→    if (campsInit.current) return
+   591→   591→    campsInit.current = true
+   592→   592→    let cancelled = false
+   593→   593→    ;(async () => {
+   594→   594→      setLoading(true)
+   595→   595→      try {
+   596→   596→        const params = new URLSearchParams({ page: String(page), limit: '20', status: statusFilter })
+   597→   597→        const res = await fetch(`/admin/api/campaigns?${params}`)
+   598→   598→        const data = await res.json()
+   599→   599→        if (!cancelled) { setCampaigns(data.campaigns || []); setTotal(data.total || 0); setLoading(false) }
+   600→   600→      } catch { if (!cancelled) setLoading(false) }
+   601→   601→    })()
+   602→   602→    return () => { cancelled = true }
+   603→   603→  }, [page, statusFilter])
+   604→   604→
+   605→   605→  const updateStatus = async (id: string, status: string) => {
+   606→   606→    await fetch('/admin/api/campaigns', {
+   607→   607→      method: 'PATCH',
+   608→   608→      headers: { 'Content-Type': 'application/json' },
+   609→   609→      body: JSON.stringify({ id, status }),
+   610→   610→    })
+   611→   611→    toast.success('Statut campagne modifié')
+   612→   612→    fetchCampaigns()
+   613→   613→  }
+   614→   614→
+   615→   615→  const deleteCampaign = async (id: string) => {
+   616→   616→    if (!confirm('Supprimer cette campagne ?')) return
+   617→   617→    await fetch(`/admin/api/campaigns?id=${id}`, { method: 'DELETE' })
+   618→   618→    toast.success('Campagne supprimée')
+   619→   619→    fetchCampaigns()
+   620→   620→  }
+   621→   621→
+   622→   622→  const statusColors: Record<string, string> = {
+   623→   623→    active: 'bg-[#4CAF50]/10 text-[#4CAF50]',
+   624→   624→    completed: 'bg-[#6C3FA9]/10 text-[#6C3FA9]',
+   625→   625→    paused: 'bg-[#FFB347]/10 text-[#FFB347]',
+   626→   626→  }
+   627→   627→
+   628→   628→  const statusLabels: Record<string, string> = { active: 'Active', completed: 'Terminée', paused: 'En pause' }
+   629→   629→
+   630→   630→  return (
+   631→   631→    <div className="p-4 space-y-4">
+   632→   632→      <div>
+   633→   633→        <h2 className="text-xl font-bold text-gray-900">Campagnes</h2>
+   634→   634→        <p className="text-sm text-gray-500">{total} campagnes</p>
+   635→   635→      </div>
+   636→   636→
+   637→   637→      <div className="flex gap-2">
+   638→   638→        <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }} className="px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none">
+   639→   639→          <option value="">Tous statuts</option>
+   640→   640→          {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+   641→   641→        </select>
+   642→   642→      </div>
+   643→   643→
+   644→   644→      {loading ? <LoadingSkeleton /> : (
+   645→   645→        <div className="space-y-2">
+   646→   646→          {campaigns.map((camp: any) => (
+   647→   647→            <div key={camp.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   648→   648→              <div className="flex items-center gap-3">
+   649→   649→                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center">
+   650→   650→                  <Megaphone className="w-5 h-5 text-white" />
+   651→   651→                </div>
+   652→   652→                <div className="flex-1 min-w-0">
+   653→   653→                  <p className="font-semibold text-sm text-gray-900 truncate">{camp.productName}</p>
+   654→   654→                  <p className="text-xs text-gray-500 flex items-center gap-1"><MapPin className="w-3 h-3" />{camp.city} · {camp.leadsFound} clients</p>
+   655→   655→                </div>
+   656→   656→                <select
+   657→   657→                  value={camp.status}
+   658→   658→                  onChange={e => updateStatus(camp.id, e.target.value)}
+   659→   659→                  className={`px-2 py-1 rounded-lg text-[11px] font-semibold ${statusColors[camp.status] || 'bg-gray-100'}`}
+   660→   660→                >
+   661→   661→                  {Object.entries(statusLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+   662→   662→                </select>
+   663→   663→              </div>
+   664→   664→              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-400">
+   665→   665→                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(camp.createdAt).toLocaleDateString('fr-FR')}</span>
+   666→   666→                {camp.user && <span>{camp.user.name || camp.user.phone}</span>}
+   667→   667→                <button onClick={() => deleteCampaign(camp.id)} className="p-1 rounded hover:bg-red-50"><Trash2 className="w-3 h-3 text-red-400" /></button>
+   668→   668→              </div>
+   669→   669→            </div>
+   670→   670→          ))}
+   671→   671→          {campaigns.length === 0 && <EmptyState message="Aucune campagne" />}
+   672→   672→        </div>
+   673→   673→      )}
+   674→   674→
+   675→   675→      {Math.ceil(total / 20) > 1 && <Pagination page={page} totalPages={Math.ceil(total / 20)} setPage={setPage} />}
+   676→   676→    </div>
+   677→   677→  )
+   678→   678→}
+   679→   679→
+   680→   680→/* ==================== CREDITS TAB ==================== */
+   681→   681→function CreditsTab() {
+   682→   682→  const [users, setUsers] = useState<any[]>([])
+   683→   683→  const [search, setSearch] = useState('')
+   684→   684→  const [loading, setLoading] = useState(true)
+   685→   685→  const [selectedUser, setSelectedUser] = useState<any>(null)
+   686→   686→  const [creditAmount, setCreditAmount] = useState(10)
+   687→   687→  const [planChange, setPlanChange] = useState('')
+   688→   688→
+   689→   689→  const creditsInit = useRef(false)
+   690→   690→  useEffect(() => {
+   691→   691→    if (creditsInit.current) return
+   692→   692→    creditsInit.current = true
+   693→   693→    let cancelled = false
+   694→   694→    ;(async () => {
+   695→   695→      try {
+   696→   696→        const res = await fetch('/admin/api/users?limit=100')
+   697→   697→        const d = await res.json()
+   698→   698→        if (!cancelled) { setUsers(d.users || []); setLoading(false) }
+   699→   699→      } catch { if (!cancelled) setLoading(false) }
+   700→   700→    })()
+   701→   701→    return () => { cancelled = true }
+   702→   702→  }, [])
+   703→   703→
+   704→   704→  const addCredits = async (userId: string, amount: number) => {
+   705→   705→    await fetch('/admin/api/credits', {
+   706→   706→      method: 'POST',
+   707→   707→      headers: { 'Content-Type': 'application/json' },
+   708→   708→      body: JSON.stringify({ userId, amount }),
+   709→   709→    })
+   710→   710→    toast.success(`${amount > 0 ? '+' : ''}${amount} crédits`)
+   711→   711→    setSelectedUser(null)
+   712→   712→  }
+   713→   713→
+   714→   714→  const setCredits = async (userId: string, credits: number) => {
+   715→   715→    await fetch('/admin/api/credits', {
+   716→   716→      method: 'PATCH',
+   717→   717→      headers: { 'Content-Type': 'application/json' },
+   718→   718→      body: JSON.stringify({ userId, credits }),
+   719→   719→    })
+   720→   720→    toast.success(`Crédits fixés à ${credits}`)
+   721→   721→    setSelectedUser(null)
+   722→   722→  }
+   723→   723→
+   724→   724→  const changePlan = async (userId: string, plan: string) => {
+   725→   725→    await fetch('/admin/api/credits', {
+   726→   726→      method: 'PATCH',
+   727→   727→      headers: { 'Content-Type': 'application/json' },
+   728→   728→      body: JSON.stringify({ userId, plan }),
+   729→   729→    })
+   730→   730→    toast.success(`Plan changé en ${plan}`)
+   731→   731→    setPlanChange('')
+   732→   732→    setSelectedUser(null)
+   733→   733→  }
+   734→   734→
+   735→   735→  const filtered = users.filter((u: any) =>
+   736→   736→    (u.name || '').toLowerCase().includes(search.toLowerCase()) ||
+   737→   737→    u.phone.includes(search)
+   738→   738→  )
+   739→   739→
+   740→   740→  const totalCredits = users.reduce((s: number, u: any) => s + u.credits, 0)
+   741→   741→  const avgCredits = users.length > 0 ? Math.round(totalCredits / users.length) : 0
+   742→   742→
+   743→   743→  if (loading) return <LoadingSkeleton />
+   744→   744→
+   745→   745→  return (
+   746→   746→    <div className="p-4 space-y-4">
+   747→   747→      <div>
+   748→   748→        <h2 className="text-xl font-bold text-gray-900">Crédits & Plans</h2>
+   749→   749→        <p className="text-sm text-gray-500">Gérer les crédits et abonnements</p>
+   750→   750→      </div>
+   751→   751→
+   752→   752→      {/* Summary */}
+   753→   753→      <div className="grid grid-cols-2 gap-3">
+   754→   754→        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   755→   755→          <p className="text-xs text-gray-500 mb-1">Crédits totaux</p>
+   756→   756→          <p className="text-2xl font-bold">{totalCredits}</p>
+   757→   757→        </div>
+   758→   758→        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   759→   759→          <p className="text-xs text-gray-500 mb-1">Moyenne / utilisateur</p>
+   760→   760→          <p className="text-2xl font-bold">{avgCredits}</p>
+   761→   761→        </div>
+   762→   762→      </div>
+   763→   763→
+   764→   764→      {/* Search */}
+   765→   765→      <div className="relative">
+   766→   766→        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+   767→   767→        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un utilisateur..." className="w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30" />
+   768→   768→      </div>
+   769→   769→
+   770→   770→      {/* Users list with credit actions */}
+   771→   771→      <div className="space-y-2">
+   772→   772→        {filtered.map((user: any) => (
+   773→   773→          <div key={user.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+   774→   774→            <div className="flex items-center gap-3">
+   775→   775→              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white font-bold text-sm">
+   776→   776→                {(user.name || 'U').charAt(0)}
+   777→   777→              </div>
+   778→   778→              <div className="flex-1 min-w-0">
+   779→   779→                <p className="font-semibold text-sm truncate">{user.name || 'Sans nom'}</p>
+   780→   780→                <p className="text-xs text-gray-500">{user.phone}</p>
+   781→   781→              </div>
+   782→   782→              <div className="text-right shrink-0">
+   783→   783→                <p className="text-lg font-bold text-[#FF7B54]">{user.credits}</p>
+   784→   784→                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+   785→   785→                  user.plan === 'pro' ? 'bg-[#6C3FA9]/10 text-[#6C3FA9]' :
+   786→   786→                  user.plan === 'starter' ? 'bg-[#FF7B54]/10 text-[#FF7B54]' :
+   787→   787→                  'bg-gray-100 text-gray-500'
+   788→   788→                }`}>{user.plan}</span>
+   789→   789→              </div>
+   790→   790→            </div>
+   791→   791→
+   792→   792→            {selectedUser === user.id ? (
+   793→   793→              <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+   794→   794→                <div className="flex gap-2">
+   795→   795→                  <button onClick={() => addCredits(user.id, -5)} className="flex-1 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium flex items-center justify-center gap-1"><Minus className="w-4 h-4" />5</button>
+   796→   796→                  <button onClick={() => addCredits(user.id, 5)} className="flex-1 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-medium flex items-center justify-center gap-1"><Plus className="w-4 h-4" />5</button>
+   797→   797→                  <button onClick={() => addCredits(user.id, 20)} className="flex-1 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-medium flex items-center justify-center gap-1"><Plus className="w-4 h-4" />20</button>
+   798→   798→                  <button onClick={() => addCredits(user.id, 50)} className="flex-1 py-2 bg-green-50 text-green-600 rounded-xl text-sm font-medium flex items-center justify-center gap-1"><Plus className="w-4 h-4" />50</button>
+   799→   799→                </div>
+   800→   800→                <div className="flex gap-2">
+   801→   801→                  <input type="number" value={creditAmount} onChange={e => setCreditAmount(parseInt(e.target.value) || 0)} className="flex-1 px-3 py-2 border rounded-xl text-sm" />
+   802→   802→                  <button onClick={() => setCredits(user.id, creditAmount)} className="px-4 py-2 bg-[#6C3FA9] text-white rounded-xl text-sm font-medium">Fixer</button>
+   803→   803→                </div>
+   804→   804→                <div className="flex gap-2">
+   805→   805→                  {['free', 'starter', 'pro'].map(p => (
+   806→   806→                    <button key={p} onClick={() => changePlan(user.id, p)} className={`flex-1 py-2 rounded-xl text-sm font-medium capitalize ${user.plan === p ? 'bg-[#FF7B54] text-white' : 'bg-gray-100 text-gray-600'}`}>{p}</button>
+   807→   807→                  ))}
+   808→   808→                </div>
+   809→   809→                <button onClick={() => setSelectedUser(null)} className="w-full py-2 bg-gray-100 rounded-xl text-sm font-medium text-gray-600">Fermer</button>
+   810→   810→              </div>
+   811→   811→            ) : (
+   812→   812→              <button onClick={() => setSelectedUser(user.id)} className="w-full mt-2 py-1.5 bg-gray-50 rounded-xl text-xs text-gray-500 font-medium flex items-center justify-center gap-1">
+   813→   813→                <Edit3 className="w-3 h-3" />Modifier crédits / plan
+   814→   814→              </button>
+   815→   815→            )}
+   816→   816→          </div>
+   817→   817→        ))}
+   818→   818→      </div>
+   819→   819→    </div>
+   820→   820→  )
+   821→   821→}
+   822→   822→
+   823→   823→/* ==================== NOTIFICATIONS TAB ==================== */
+   824→   824→function NotificationsTab() {
+   825→   825→  const [notifications, setNotifications] = useState<any[]>([])
+   826→   826→  const [total, setTotal] = useState(0)
+   827→   827→  const [page, setPage] = useState(1)
+   828→   828→  const [loading, setLoading] = useState(true)
+   829→   829→  const [showCreate, setShowCreate] = useState(false)
+   830→   830→  const [createForm, setCreateForm] = useState({ userId: '', type: 'system', title: '', message: '' })
+   831→   831→  const [users, setUsers] = useState<any[]>([])
+   832→   832→
+   833→   833→  const fetchNotifs = useCallback(async () => {
+   834→   834→    setLoading(true)
+   835→   835→    const params = new URLSearchParams({ page: String(page), limit: '20' })
+   836→   836→    const res = await fetch(`/admin/api/notifications?${params}`)
+   837→   837→    const data = await res.json()
+   838→   838→    setNotifications(data.notifications || [])
+   839→   839→    setTotal(data.total || 0)
+   840→   840→    setLoading(false)
+   841→   841→  }, [page])
+   842→   842→
+   843→   843→  const notifsInit = useRef(false)
+   844→   844→  useEffect(() => {
+   845→   845→    if (notifsInit.current) return
+   846→   846→    notifsInit.current = true
+   847→   847→    let cancelled = false
+   848→   848→    ;(async () => {
+   849→   849→      try {
+   850→   850→        const params = new URLSearchParams({ page: String(page), limit: '20' })
+   851→   851→        const [notifsRes, usersRes] = await Promise.all([
+   852→   852→          fetch(`/admin/api/notifications?${params}`),
+   853→   853→          fetch('/admin/api/users?limit=100'),
+   854→   854→        ])
+   855→   855→        const notifsData = await notifsRes.json()
+   856→   856→        const usersData = await usersRes.json()
+   857→   857→        if (!cancelled) {
+   858→   858→          setNotifications(notifsData.notifications || [])
+   859→   859→          setTotal(notifsData.total || 0)
+   860→   860→          setLoading(false)
+   861→   861→          setUsers(usersData.users || [])
+   862→   862→        }
+   863→   863→      } catch { if (!cancelled) setLoading(false) }
+   864→   864→    })()
+   865→   865→    return () => { cancelled = true }
+   866→   866→  }, [])
+   867→   867→
+   868→   868→  const markAllRead = async () => {
+   869→   869→    await fetch('/admin/api/notifications', {
+   870→   870→      method: 'PATCH',
+   871→   871→      headers: { 'Content-Type': 'application/json' },
+   872→   872→      body: JSON.stringify({ markAllRead: true }),
+   873→   873→    })
+   874→   874→    toast.success('Toutes marquées comme lues')
+   875→   875→    fetchNotifs()
+   876→   876→  }
+   877→   877→
+   878→   878→  const createNotif = async () => {
+   879→   879→    if (!createForm.userId || !createForm.title || !createForm.message) return
+   880→   880→    await fetch('/admin/api/notifications', {
+   881→   881→      method: 'POST',
+   882→   882→      headers: { 'Content-Type': 'application/json' },
+   883→   883→      body: JSON.stringify(createForm),
+   884→   884→    })
+   885→   885→    toast.success('Notification envoyée')
+   886→   886→    setShowCreate(false)
+   887→   887→    setCreateForm({ userId: '', type: 'system', title: '', message: '' })
+   888→   888→    fetchNotifs()
+   889→   889→  }
+   890→   890→
+   891→   891→  const deleteNotif = async (id: string) => {
+   892→   892→    await fetch(`/admin/api/notifications?id=${id}`, { method: 'DELETE' })
+   893→   893→    toast.success('Supprimée')
+   894→   894→    fetchNotifs()
+   895→   895→  }
+   896→   896→
+   897→   897→  const typeLabels: Record<string, string> = {
+   898→   898→    new_leads: 'Nouveaux clients', system: 'Système', subscription: 'Abonnement',
+   899→   899→    follow_up: 'Suivi', relance: 'Relance', ai_suggestion: 'Conseil IA',
+   900→   900→  }
+   901→   901→
+   902→   902→  const typeColors: Record<string, string> = {
+   903→   903→    new_leads: 'bg-[#FF7B54]/10 text-[#FF7B54]',
+   904→   904→    system: 'bg-[#6C3FA9]/10 text-[#6C3FA9]',
+   905→   905→    subscription: 'bg-[#2EC4B6]/10 text-[#2EC4B6]',
+   906→   906→    follow_up: 'bg-[#FFB347]/10 text-[#FFB347]',
+   907→   907→    relance: 'bg-[#E4405F]/10 text-[#E4405F]',
+   908→   908→    ai_suggestion: 'bg-[#6C3FA9]/10 text-[#6C3FA9]',
+   909→   909→  }
+   910→   910→
+   911→   911→  return (
+   912→   912→    <div className="p-4 space-y-4">
+   913→   913→      <div className="flex items-center justify-between">
+   914→   914→        <div>
+   915→   915→          <h2 className="text-xl font-bold text-gray-900">Notifications</h2>
+   916→   916→          <p className="text-sm text-gray-500">{total} notifications</p>
+   917→   917→        </div>
+   918→   918→        <div className="flex gap-2">
+   919→   919→          <button onClick={markAllRead} className="px-3 py-1.5 bg-gray-100 rounded-xl text-xs font-medium text-gray-600 flex items-center gap-1"><Check className="w-3 h-3" />Tout lire</button>
+   920→   920→          <button onClick={() => setShowCreate(!showCreate)} className="px-3 py-1.5 bg-[#FF7B54] text-white rounded-xl text-xs font-medium flex items-center gap-1"><Plus className="w-3 h-3" />Envoyer</button>
+   921→   921→        </div>
+   922→   922→      </div>
+   923→   923→
+   924→   924→      {/* Create notification form */}
+   925→   925→      {showCreate && (
+   926→   926→        <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+   927→   927→          <h3 className="text-sm font-semibold">Nouvelle notification</h3>
+   928→   928→          <select value={createForm.userId} onChange={e => setCreateForm(f => ({ ...f, userId: e.target.value }))} className="w-full px-3 py-2 border rounded-xl text-sm">
+   929→   929→            <option value="">Choisir un utilisateur</option>
+   930→   930→            {users.map((u: any) => <option key={u.id} value={u.id}>{u.name || u.phone}</option>)}
+   931→   931→          </select>
+   932→   932→          <select value={createForm.type} onChange={e => setCreateForm(f => ({ ...f, type: e.target.value }))} className="w-full px-3 py-2 border rounded-xl text-sm">
+   933→   933→            {Object.entries(typeLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+   934→   934→          </select>
+   935→   935→          <input value={createForm.title} onChange={e => setCreateForm(f => ({ ...f, title: e.target.value }))} placeholder="Titre" className="w-full px-3 py-2 border rounded-xl text-sm" />
+   936→   936→          <textarea value={createForm.message} onChange={e => setCreateForm(f => ({ ...f, message: e.target.value }))} placeholder="Message" rows={2} className="w-full px-3 py-2 border rounded-xl text-sm resize-none" />
+   937→   937→          <button onClick={createNotif} className="w-full py-2.5 bg-[#FF7B54] text-white rounded-xl text-sm font-medium flex items-center justify-center gap-1"><Send className="w-4 h-4" />Envoyer</button>
+   938→   938→        </div>
+   939→   939→      )}
+   940→   940→
+   941→   941→      {loading ? <LoadingSkeleton /> : (
+   942→   942→        <div className="space-y-2">
+   943→   943→          {notifications.map((notif: any) => (
+   944→   944→            <div key={notif.id} className={`bg-white rounded-2xl p-4 shadow-sm border ${notif.read ? 'border-gray-100' : 'border-[#FF7B54]/20 bg-[#FF7B54]/5'}`}>
+   945→   945→              <div className="flex items-start gap-3">
+   946→   946→                <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-bold ${typeColors[notif.type] || 'bg-gray-100'}`}>
+   947→   947→                  {typeLabels[notif.type] || notif.type}
+   948→   948→                </span>
+   949→   949→                <div className="flex-1 min-w-0">
+   950→   950→                  <p className="font-semibold text-sm">{notif.title}</p>
+   951→   951→                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notif.message}</p>
+   952→   952→                </div>
+   953→   953→                <button onClick={() => deleteNotif(notif.id)} className="shrink-0 p-1 rounded hover:bg-red-50"><Trash2 className="w-3 h-3 text-red-400" /></button>
+   954→   954→              </div>
+   955→   955→              <div className="flex items-center gap-2 mt-2 text-[10px] text-gray-400">
+   956→   956→                {notif.user && <span>{notif.user.name || notif.user.phone}</span>}
+   957→   957→                <span>· {new Date(notif.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+   958→   958→                {!notif.read && <span className="w-2 h-2 bg-[#FF7B54] rounded-full" />}
+   959→   959→              </div>
+   960→   960→            </div>
+   961→   961→          ))}
+   962→   962→          {notifications.length === 0 && <EmptyState message="Aucune notification" />}
+   963→   963→        </div>
+   964→   964→      )}
+   965→   965→
+   966→   966→      {Math.ceil(total / 20) > 1 && <Pagination page={page} totalPages={Math.ceil(total / 20)} setPage={setPage} />}
+   967→   967→    </div>
+   968→   968→  )
+   969→   969→}
+   970→   970→
+   971→   971→/* ==================== SETTINGS TAB ==================== */
+   972→   972→function SettingsTab() {
+   973→   973→  const [settings, setSettings] = useState<any[]>([])
+   974→   974→  const [loading, setLoading] = useState(true)
+   975→   975→  const [newKey, setNewKey] = useState('')
+   976→   976→  const [newValue, setNewValue] = useState('')
+   977→   977→  const [newDesc, setNewDesc] = useState('')
+   978→   978→  const [editingKey, setEditingKey] = useState<string | null>(null)
+   979→   979→  const [editValue, setEditValue] = useState('')
+   980→   980→
+   981→   981→  const settingsInit = useRef(false)
+   982→   982→  useEffect(() => {
+   983→   983→    if (settingsInit.current) return
+   984→   984→    settingsInit.current = true
+   985→   985→    let cancelled = false
+   986→   986→    ;(async () => {
+   987→   987→      try {
+   988→   988→        const res = await fetch('/admin/api/settings')
+   989→   989→        const d = await res.json()
+   990→   990→        if (!cancelled) { setSettings(d.settings || []); setLoading(false) }
+   991→   991→      } catch { if (!cancelled) setLoading(false) }
+   992→   992→    })()
+   993→   993→    return () => { cancelled = true }
+   994→   994→  }, [])
+   995→   995→
+   996→   996→  const saveSetting = async (key: string, value: string, description?: string) => {
+   997→   997→    await fetch('/admin/api/settings', {
+   998→   998→      method: 'PATCH',
+   999→   999→      headers: { 'Content-Type': 'application/json' },
+  1000→  1000→      body: JSON.stringify({ key, value, description }),
+  1001→  1001→    })
+  1002→  1002→    toast.success('Paramètre sauvegardé')
+  1003→  1003→    setEditingKey(null)
+  1004→  1004→    const res = await fetch('/admin/api/settings')
+  1005→  1005→    const data = await res.json()
+  1006→  1006→    setSettings(data.settings || [])
+  1007→  1007→  }
+  1008→  1008→
+  1009→  1009→  const addSetting = async () => {
+  1010→  1010→    if (!newKey || !newValue) return
+  1011→  1011→    await saveSetting(newKey, newValue, newDesc || undefined)
+  1012→  1012→    setNewKey('')
+  1013→  1013→    setNewValue('')
+  1014→  1014→    setNewDesc('')
+  1015→  1015→  }
+  1016→  1016→
+  1017→  1017→  // Default settings suggestions
+  1018→  1018→  const defaultSettings = [
+  1019→  1019→    { key: 'free_plan_credits', value: '5', description: 'Crédits plan gratuit' },
+  1020→  1020→    { key: 'starter_plan_credits', value: '20', description: 'Crédits plan Starter' },
+  1021→  1021→    { key: 'pro_plan_credits', value: '50', description: 'Crédits plan Pro' },
+  1022→  1022→    { key: 'ai_model_default', value: 'gpt-4o-mini', description: 'Modèle IA par défaut' },
+  1023→  1023→    { key: 'ai_fallback_model', value: 'claude-3-haiku', description: 'Modèle IA de secours' },
+  1024→  1024→    { key: 'max_prospection_leads', value: '20', description: 'Max clients par prospection' },
+  1025→  1025→    { key: 'notification_enabled', value: 'true', description: 'Notifications actives' },
+  1026→  1026→    { key: 'maintenance_mode', value: 'false', description: 'Mode maintenance' },
+  1027→  1027→  ]
+  1028→  1028→
+  1029→  1029→  if (loading) return <LoadingSkeleton />
+  1030→  1030→
+  1031→  1031→  return (
+  1032→  1032→    <div className="p-4 space-y-4">
+  1033→  1033→      <div>
+  1034→  1034→        <h2 className="text-xl font-bold text-gray-900">Configuration</h2>
+  1035→  1035→        <p className="text-sm text-gray-500">Paramètres de l&apos;application</p>
+  1036→  1036→      </div>
+  1037→  1037→
+  1038→  1038→      {/* Add new setting */}
+  1039→  1039→      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
+  1040→  1040→        <h3 className="text-sm font-semibold flex items-center gap-2"><Plus className="w-4 h-4 text-[#FF7B54]" />Ajouter un paramètre</h3>
+  1041→  1041→        <input value={newKey} onChange={e => setNewKey(e.target.value)} placeholder="Clé (ex: free_plan_credits)" className="w-full px-3 py-2 border rounded-xl text-sm" />
+  1042→  1042→        <input value={newValue} onChange={e => setNewValue(e.target.value)} placeholder="Valeur" className="w-full px-3 py-2 border rounded-xl text-sm" />
+  1043→  1043→        <input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Description (optionnel)" className="w-full px-3 py-2 border rounded-xl text-sm" />
+  1044→  1044→        <button onClick={addSetting} className="w-full py-2.5 bg-[#FF7B54] text-white rounded-xl text-sm font-medium">Ajouter</button>
+  1045→  1045→      </div>
+  1046→  1046→
+  1047→  1047→      {/* Quick add defaults */}
+  1048→  1048→      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+  1049→  1049→        <h3 className="text-sm font-semibold mb-3">Paramètres recommandés</h3>
+  1050→  1050→        <div className="flex flex-wrap gap-2">
+  1051→  1051→          {defaultSettings.filter(ds => !settings.find((s: any) => s.key === ds.key)).map(ds => (
+  1052→  1052→            <button
+  1053→  1053→              key={ds.key}
+  1054→  1054→              onClick={() => saveSetting(ds.key, ds.value, ds.description)}
+  1055→  1055→              className="px-3 py-1.5 bg-gray-50 rounded-xl text-xs text-gray-600 hover:bg-[#FF7B54]/10 hover:text-[#FF7B54] transition-colors"
+  1056→  1056→            >
+  1057→  1057→              + {ds.key}
+  1058→  1058→            </button>
+  1059→  1059→          ))}
+  1060→  1060→        </div>
+  1061→  1061→      </div>
+  1062→  1062→
+  1063→  1063→      {/* Current settings */}
+  1064→  1064→      <div className="space-y-2">
+  1065→  1065→        {settings.map((setting: any) => (
+  1066→  1066→          <div key={setting.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
+  1067→  1067→            {editingKey === setting.key ? (
+  1068→  1068→              <div className="space-y-2">
+  1069→  1069→                <p className="text-xs font-mono text-gray-500">{setting.key}</p>
+  1070→  1070→                <input value={editValue} onChange={e => setEditValue(e.target.value)} className="w-full px-3 py-2 border rounded-xl text-sm" autoFocus />
+  1071→  1071→                <div className="flex gap-2">
+  1072→  1072→                  <button onClick={() => saveSetting(setting.key, editValue, setting.description || undefined)} className="flex-1 py-2 bg-[#4CAF50] text-white rounded-xl text-sm font-medium">Sauver</button>
+  1073→  1073→                  <button onClick={() => setEditingKey(null)} className="flex-1 py-2 bg-gray-100 rounded-xl text-sm">Annuler</button>
+  1074→  1074→                </div>
+  1075→  1075→              </div>
+  1076→  1076→            ) : (
+  1077→  1077→              <div className="flex items-center gap-3">
+  1078→  1078→                <div className="flex-1 min-w-0">
+  1079→  1079→                  <p className="text-sm font-mono font-semibold text-gray-900">{setting.key}</p>
+  1080→  1080→                  <p className="text-xs text-gray-500 truncate">{setting.description || 'Sans description'}</p>
+  1081→  1081→                </div>
+  1082→  1082→                <div className="flex items-center gap-2 shrink-0">
+  1083→  1083→                  <span className="px-2 py-1 bg-gray-50 rounded-lg text-xs font-mono">{setting.value}</span>
+  1084→  1084→                  <button onClick={() => { setEditingKey(setting.key); setEditValue(setting.value) }} className="p-1.5 rounded-lg hover:bg-gray-100"><Edit3 className="w-3.5 h-3.5 text-gray-400" /></button>
+  1085→  1085→                </div>
+  1086→  1086→              </div>
+  1087→  1087→            )}
+  1088→  1088→          </div>
+  1089→  1089→        ))}
+  1090→  1090→        {settings.length === 0 && <EmptyState message="Aucun paramètre configuré" />}
+  1091→  1091→      </div>
+  1092→  1092→    </div>
+  1093→  1093→  )
+  1094→  1094→}
+  1095→  1095→
+  1096→  1096→/* ==================== SHARED COMPONENTS ==================== */
+  1097→  1097→function LoadingSkeleton() {
+  1098→  1098→  return (
+  1099→  1099→    <div className="p-4 space-y-3">
+  1100→  1100→      {[1, 2, 3, 4].map(i => (
+  1101→  1101→        <div key={i} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 animate-pulse">
+  1102→  1102→          <div className="flex items-center gap-3">
+  1103→  1103→            <div className="w-10 h-10 bg-gray-200 rounded-xl" />
+  1104→  1104→            <div className="flex-1 space-y-2">
+  1105→  1105→              <div className="h-4 bg-gray-200 rounded w-3/4" />
+  1106→  1106→              <div className="h-3 bg-gray-200 rounded w-1/2" />
+  1107→  1107→            </div>
+  1108→  1108→          </div>
+  1109→  1109→        </div>
+  1110→  1110→      ))}
+  1111→  1111→    </div>
+  1112→  1112→  )
+  1113→  1113→}
+  1114→  1114→
+  1115→  1115→function EmptyState({ message }: { message: string }) {
+  1116→  1116→  return (
+  1117→  1117→    <div className="flex flex-col items-center justify-center py-12">
+  1118→  1118→      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+  1119→  1119→        <AlertTriangle className="w-7 h-7 text-gray-300" />
+  1120→  1120→      </div>
+  1121→  1121→      <p className="text-sm text-gray-400">{message}</p>
+  1122→  1122→    </div>
+  1123→  1123→  )
+  1124→  1124→}
+  1125→  1125→
+  1126→  1126→function Pagination({ page, totalPages, setPage }: { page: number; totalPages: number; setPage: (p: number) => void }) {
+  1127→  1127→  return (
+  1128→  1128→    <div className="flex items-center justify-center gap-2 pt-4">
+  1129→  1129→      <button onClick={() => setPage(Math.max(1, page - 1))} disabled={page <= 1} className="px-3 py-1.5 bg-white border rounded-xl text-sm disabled:opacity-40">Préc.</button>
+  1130→  1130→      <span className="text-xs text-gray-500">{page} / {totalPages}</span>
+  1131→  1131→      <button onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page >= totalPages} className="px-3 py-1.5 bg-white border rounded-xl text-sm disabled:opacity-40">Suiv.</button>
+  1132→  1132→    </div>
+  1133→  1133→  )
+  1134→  1134→}
+  1135→  1135→
