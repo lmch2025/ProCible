@@ -1,36 +1,28 @@
 ---
-Task ID: 1
+Task ID: 2
 Agent: Main Agent
-Task: Build Hermes PWA - Personal prospecting assistant
+Task: Implement intelligent CRM with AI-powered features
 
 Work Log:
-- Explored existing Next.js project structure (Next.js 16, TypeScript, Tailwind CSS, shadcn/ui, Prisma SQLite)
-- Designed and implemented Prisma schema with User, Lead, Preference, Notification models
-- Pushed schema to SQLite database
-- Built complete visual identity: warm-to-cold gradient (#FF7B54 → #6C3FA9), rounded typography, Hermes theme in globals.css
-- Created Zustand store for app state management (auth, navigation, leads, notifications, preferences)
-- Built 3-screen animated Onboarding (Bienvenue → Préférences → Phone auth)
-- Built Home screen with animated "nouveaux prospects" card, stats, recent leads
-- Built Mes Leads screen with swipeable card UI (swipe right = save, left = ignore)
-- Built Lead Detail screen with giant Appeler / WhatsApp / Sauvegarder buttons
-- Built Notifications screen with type-based icons and unread badges
-- Built Profile screen with subscription tiers and Mobile Money/Orange Money/MTN Money payment options
-- Built Preferences screen with pictogram-based sector/city selection
-- Built BottomNav with 4 tabs + notification badge animation
-- Built ConfettiEffect for successful actions
-- Built SkeletonCard/SkeletonLeadList loaders
-- Created API routes: /api/leads, /api/notifications, /api/preferences, /api/seed
-- Created PWA: manifest.json, service worker (sw.js), offline support, push notifications
-- Generated PWA icons (512x512, 192x192) via AI image generation
-- Fixed React Compiler memoization issue in LeadsScreen
-- Fixed onboarding step 3 null-safe fallback for currentSlide
-- Fixed seed API to prevent duplicate notifications
-- Cleaned up unused state variables in page.tsx
-- Verified all screens with Agent Browser - all passing
+- Updated Prisma schema: added LeadStage (nouveau/contacte/en_discussion/a_relancer/gagne/perdu), ContactHistory model, lead scoring, AI suggestions, follow-up dates
+- Built OpenRouter AI service with 7 free models + automatic fallback chain
+- Created /api/ai/draft endpoint for AI message generation (WhatsApp, call script, email)
+- Created /api/ai/analyze endpoint for lead scoring and AI suggestions
+- Created /api/crm/leads endpoint with stage filtering and updates
+- Created /api/crm/contact endpoint for contact history logging with auto-stage-advance
+- Rebuilt Hermes store with full CRM state: LeadStage, ContactEntry, AI draft management
+- Rebuilt LeadsScreen with 6 stage tabs + "Tous" filter, lead cards with score and stage badges
+- Rebuilt LeadDetail with: score ring visualization, stage dropdown selector, AI draft generation panel, contact history timeline, action buttons
+- Rebuilt HomeScreen with CRM pipeline stats, follow-up alerts, average score
+- Rebuilt NotificationsScreen with CRM notification types (follow_up, relance, ai_suggestion)
+- Updated seed data with diverse stages, contact counts, scores, and AI suggestions
+- All lint checks pass, browser verification confirms all CRM features working
 
 Stage Summary:
-- Full Hermes PWA built with 8 screens, all animations, PWA support
-- Visual identity: coral-to-violet gradient, rounded corners, skeleton loaders, confetti
-- Accessibility: 56px min buttons, one action per screen, audio read option
-- PWA: installable, offline-ready, < 2MB, push notification support
-- All lint checks pass, all browser verifications pass
+- Full CRM with 6-stage pipeline: Nouveau → Contacté → En Discussion → À Relancer → Gagné → Perdu
+- AI service: 7 OpenRouter free models with automatic fallback + local fallback
+- AI features: message drafting (WhatsApp/call/email), lead scoring, smart suggestions
+- Auto stage advancement: nouveau→contacté after 1st contact, contacte→en_discussion after 2nd
+- Contact history timeline per lead with AI-generated flag
+- Follow-up tracking with nextFollowUpAt dates
+- CRM notifications: follow-up reminders, relance alerts, AI suggestions

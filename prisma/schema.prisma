@@ -24,30 +24,47 @@ model User {
 }
 
 model Lead {
-  id           String   @id @default(cuid())
-  name         String
-  business     String?
-  sector       String?
-  city         String?
-  phone        String?
-  whatsapp     String?
-  email        String?
-  address      String?
-  source       String   @default("maps") // maps, facebook, instagram, linkedin
-  status       String   @default("new")  // new, saved, ignored, contacted
-  notes        String?
-  userId       String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id              String   @id @default(cuid())
+  name            String
+  business        String?
+  sector          String?
+  city            String?
+  phone           String?
+  whatsapp        String?
+  email           String?
+  address         String?
+  source          String   @default("maps") // maps, facebook, instagram, linkedin
+  stage           String   @default("nouveau") // nouveau, contacte, en_discussion, a_relancer, gagne, perdu
+  notes           String?
+  lastContactAt   DateTime?
+  nextFollowUpAt  DateTime?
+  contactCount    Int      @default(0)
+  aiSuggestion    String?  // last AI-generated suggestion
+  score           Int      @default(50) // lead score 0-100
+  userId          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  user         User     @relation(fields: [userId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+  contacts        ContactHistory[]
+}
+
+model ContactHistory {
+  id          String   @id @default(cuid())
+  type        String   // appel, whatsapp, email, visite, note
+  content     String?  // message content or note text
+  aiGenerated Boolean  @default(false)
+  leadId      String
+  createdAt   DateTime @default(now())
+
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
 }
 
 model Preference {
   id           String   @id @default(cuid())
-  sectors      String   @default("") // comma-separated
-  cities       String   @default("") // comma-separated
-  businessType String   @default("") // comma-separated: restaurant,shop,service,etc
+  sectors      String   @default("")
+  cities       String   @default("")
+  businessType String   @default("")
   userId       String   @unique
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -57,10 +74,11 @@ model Preference {
 
 model Notification {
   id           String   @id @default(cuid())
-  type         String   @default("new_leads") // new_leads, system, subscription
+  type         String   @default("new_leads") // new_leads, system, subscription, follow_up, relance, ai_suggestion
   title        String
   message      String
   read         Boolean  @default(false)
+  leadId       String?
   userId       String
   createdAt    DateTime @default(now())
 
