@@ -130,11 +130,13 @@
   }
 }
 
-/* Hermes custom utilities */
+/* ProCible custom utilities (renamed from Hermes) */
+.procible-gradient,
 .hermes-gradient {
   background: linear-gradient(135deg, #FF7B54 0%, #6C3FA9 100%);
 }
 
+.procible-gradient-text,
 .hermes-gradient-text {
   background: linear-gradient(135deg, #FF7B54 0%, #6C3FA9 100%);
   -webkit-background-clip: text;
@@ -142,22 +144,25 @@
   background-clip: text;
 }
 
+.procible-gradient-warm,
 .hermes-gradient-warm {
   background: linear-gradient(135deg, #FF7B54 0%, #FFB347 100%);
 }
 
+.procible-gradient-cool,
 .hermes-gradient-cool {
   background: linear-gradient(135deg, #6C3FA9 0%, #2EC4B6 100%);
 }
 
 /* Pulse animation for new leads */
-@keyframes hermes-pulse {
+@keyframes procible-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.85; transform: scale(1.02); }
 }
 
+.animate-procible-pulse,
 .animate-hermes-pulse {
-  animation: hermes-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: procible-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
 /* Skeleton shimmer */
