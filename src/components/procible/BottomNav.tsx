@@ -12,8 +12,12 @@ const navItems: { screen: Screen; icon: typeof Home; label: string }[] = [
 ]
 
 export default function BottomNav() {
-  const { currentScreen, navigateTo, notifications, setShowProspectionForm } = useProcibleStore()
+  const { currentScreen, navigateTo, notifications, setShowProspectionForm, credits } = useProcibleStore()
   const unreadCount = notifications.filter(n => !n.read).length
+
+  // Low-credit warning persists across all screens via BottomNav
+  const LOW_CREDIT_THRESHOLD = 2
+  const isLowCredits = credits <= LOW_CREDIT_THRESHOLD
 
   // Split items: 2 left, central +, 2 right
   const leftItems = navItems.slice(0, 2)
@@ -125,15 +129,26 @@ export default function BottomNav() {
         {/* Right items */}
         {rightItems.map(({ screen, icon: Icon, label }) => {
           const active = isActive(screen)
+          const showLowCreditPulse = screen === 'profile' && isLowCredits
           return (
             <button
               key={screen}
               onClick={() => navigateTo(screen)}
+              aria-label={showLowCreditPulse ? `Profil — crédits faibles : ${credits}` : label}
               className="relative flex flex-col items-center gap-1 py-2 px-3 min-w-[60px] transition-colors"
             >
               <div className="relative">
+                {/* Pulsing low-credit halo on profile icon */}
+                {showLowCreditPulse && (
+                  <motion.span
+                    aria-hidden
+                    className="absolute inset-0 rounded-full bg-[#EF4444]/30 pointer-events-none"
+                    animate={{ scale: [1, 1.4, 1], opacity: [0.55, 0, 0.55] }}
+                    transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+                  />
+                )}
                 <Icon
-                  className={`w-6 h-6 transition-colors ${active ? 'text-[#FF7B54]' : 'text-muted-foreground'}`}
+                  className={`w-6 h-6 transition-colors relative ${active ? 'text-[#FF7B54]' : showLowCreditPulse ? 'text-[#EF4444]' : 'text-muted-foreground'}`}
                   strokeWidth={active ? 2.5 : 1.5}
                 />
                 {/* Notification badge */}
@@ -146,6 +161,17 @@ export default function BottomNav() {
                     <span className="text-[10px] text-white font-bold">{unreadCount}</span>
                   </motion.span>
                 )}
+                {/* Low-credit badge on profile tab */}
+                {showLowCreditPulse && (
+                  <motion.span
+                    aria-hidden
+                    className="absolute -top-1.5 -right-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-[#EF4444] border-2 border-white"
+                    animate={{ scale: [1, 1.25, 1] }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                  >
+                    <span className="text-[9px] font-bold text-white leading-none">!</span>
+                  </motion.span>
+                )}
                 {active && (
                   <motion.div
                     layoutId="nav-indicator-right"
@@ -154,7 +180,7 @@ export default function BottomNav() {
                   />
                 )}
               </div>
-              <span className={`text-[11px] font-medium ${active ? 'text-[#FF7B54]' : 'text-muted-foreground'}`}>
+              <span className={`text-[11px] font-medium ${active ? 'text-[#FF7B54]' : showLowCreditPulse ? 'text-[#EF4444]' : 'text-muted-foreground'}`}>
                 {label}
               </span>
             </button>
