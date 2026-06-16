@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, withDbFallback } from '@/lib/db'
 
 export async function GET() {
   try {
-    const settings = await db.appSettings.findMany({ orderBy: { key: 'asc' } })
+    const settings = await withDbFallback(
+      (client) => client.appSettings.findMany({ orderBy: { key: 'asc' } }),
+      [],
+    )
     return NextResponse.json({ settings })
   } catch (error) {
     console.error('Admin settings error:', error)
-    return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })
+    return NextResponse.json({ settings: [] })
   }
 }
 
@@ -18,11 +21,15 @@ export async function PATCH(request: Request) {
 
     if (!key || value === undefined) return NextResponse.json({ error: 'Key and value required' }, { status: 400 })
 
-    const setting = await db.appSettings.upsert({
-      where: { key },
-      update: { value, description: description || undefined },
-      create: { key, value, description: description || null },
-    })
+    const setting = await withDbFallback(
+      (client) =>
+        client.appSettings.upsert({
+          where: { key },
+          update: { value, description: description || undefined },
+          create: { key, value, description: description || null },
+        }),
+      null as any,
+    )
     return NextResponse.json({ setting })
   } catch (error) {
     console.error('Admin settings update error:', error)

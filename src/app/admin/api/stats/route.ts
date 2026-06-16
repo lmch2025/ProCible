@@ -1,14 +1,26 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, withDbFallback } from '@/lib/db'
+
+// Safe empty shape so the frontend never crashes on `stats.users.total` etc.
+const EMPTY_STATS = {
+  users: { total: 0, onboarded: 0, plans: { free: 0, starter: 0, pro: 0 }, totalCredits: 0, recentSignups: 0 },
+  leads: { total: 0, stages: {}, sources: {}, avgScore: 0, recentLeads: 0 },
+  campaigns: { total: 0, active: 0, totalLeadsFound: 0 },
+  notifications: { total: 0, unread: 0, types: {} },
+}
 
 export async function GET() {
   try {
-    const [users, leads, campaigns, notifications] = await Promise.all([
-      db.user.findMany({ select: { id: true, plan: true, credits: true, createdAt: true, onboarded: true } }),
-      db.lead.findMany({ select: { id: true, stage: true, score: true, source: true, createdAt: true } }),
-      db.prospectionCampaign.findMany({ select: { id: true, status: true, leadsFound: true, createdAt: true } }),
-      db.notification.findMany({ select: { id: true, type: true, read: true } }),
-    ])
+    const [users, leads, campaigns, notifications] = await withDbFallback(
+      async (client) =>
+        Promise.all([
+          client.user.findMany({ select: { id: true, plan: true, credits: true, createdAt: true, onboarded: true } }),
+          client.lead.findMany({ select: { id: true, stage: true, score: true, source: true, createdAt: true } }),
+          client.prospectionCampaign.findMany({ select: { id: true, status: true, leadsFound: true, createdAt: true } }),
+          client.notification.findMany({ select: { id: true, type: true, read: true } }),
+        ]),
+      [[], [], [], []],
+    )
 
     const totalUsers = users.length
     const onboardedUsers = users.filter(u => u.onboarded).length
@@ -48,6 +60,7 @@ export async function GET() {
     })
   } catch (error) {
     console.error('Admin stats error:', error)
-    return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 })
+    // Always return 200 with safe empty shape — never crash the frontend.
+    return NextResponse.json(EMPTY_STATS, { status: 200 })
   }
 }

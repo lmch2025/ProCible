@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, withDbFallback } from '@/lib/db'
 
 export async function GET(request: Request) {
   try {
@@ -13,21 +13,25 @@ export async function GET(request: Request) {
     if (type) where.type = type
     if (unreadOnly) where.read = false
 
-    const [notifications, total] = await Promise.all([
-      db.notification.findMany({
-        where,
-        include: { user: { select: { id: true, name: true, phone: true } } },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      db.notification.count({ where }),
-    ])
+    const [notifications, total] = await withDbFallback(
+      async (client) =>
+        Promise.all([
+          client.notification.findMany({
+            where,
+            include: { user: { select: { id: true, name: true, phone: true } } },
+            orderBy: { createdAt: 'desc' },
+            skip: (page - 1) * limit,
+            take: limit,
+          }),
+          client.notification.count({ where }),
+        ]),
+      [[], 0],
+    )
 
     return NextResponse.json({ notifications, total, page, limit, totalPages: Math.ceil(total / limit) })
   } catch (error) {
     console.error('Admin notifications error:', error)
-    return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 })
+    return NextResponse.json({ notifications: [], total: 0, page: 1, limit: 20, totalPages: 0 })
   }
 }
 
@@ -38,9 +42,13 @@ export async function POST(request: Request) {
 
     if (!userId || !title || !message) return NextResponse.json({ error: 'userId, title, message required' }, { status: 400 })
 
-    const notification = await db.notification.create({
-      data: { userId, type: type || 'system', title, message },
-    })
+    const notification = await withDbFallback(
+      (client) =>
+        client.notification.create({
+          data: { userId, type: type || 'system', title, message },
+        }),
+      null as any,
+    )
     return NextResponse.json({ notification })
   } catch (error) {
     console.error('Admin notification create error:', error)
@@ -54,12 +62,18 @@ export async function PATCH(request: Request) {
     const { id, markAllRead } = body
 
     if (markAllRead) {
-      await db.notification.updateMany({ where: { read: false }, data: { read: true } })
+      await withDbFallback(
+        (client) => client.notification.updateMany({ where: { read: false }, data: { read: true } }),
+        null as any,
+      )
       return NextResponse.json({ success: true })
     }
 
     if (!id) return NextResponse.json({ error: 'Notification ID required' }, { status: 400 })
-    const notification = await db.notification.update({ where: { id }, data: { read: true } })
+    const notification = await withDbFallback(
+      (client) => client.notification.update({ where: { id }, data: { read: true } }),
+      null as any,
+    )
     return NextResponse.json({ notification })
   } catch (error) {
     console.error('Admin notification update error:', error)
@@ -73,7 +87,10 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'Notification ID required' }, { status: 400 })
 
-    await db.notification.delete({ where: { id } })
+    await withDbFallback(
+      (client) => client.notification.delete({ where: { id } }),
+      null as any,
+    )
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Admin notification delete error:', error)

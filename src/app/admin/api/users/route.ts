@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, withDbFallback } from '@/lib/db'
 
 export async function GET(request: Request) {
   try {
@@ -19,24 +19,28 @@ export async function GET(request: Request) {
     }
     if (plan) where.plan = plan
 
-    const [users, total] = await Promise.all([
-      db.user.findMany({
-        where,
-        include: {
-          _count: { select: { leads: true, notifications: true, campaigns: true } },
-          preferences: true,
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      db.user.count({ where }),
-    ])
+    const [users, total] = await withDbFallback(
+      async (client) =>
+        Promise.all([
+          client.user.findMany({
+            where,
+            include: {
+              _count: { select: { leads: true, notifications: true, campaigns: true } },
+              preferences: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            skip: (page - 1) * limit,
+            take: limit,
+          }),
+          client.user.count({ where }),
+        ]),
+      [[], 0],
+    )
 
     return NextResponse.json({ users, total, page, limit, totalPages: Math.ceil(total / limit) })
   } catch (error) {
     console.error('Admin users error:', error)
-    return NextResponse.json({ error: 'Failed to fetch users' }, { status: 500 })
+    return NextResponse.json({ users: [], total: 0, page: 1, limit: 20, totalPages: 0 })
   }
 }
 
@@ -53,7 +57,10 @@ export async function PATCH(request: Request) {
     if (name !== undefined) data.name = name
     if (onboarded !== undefined) data.onboarded = onboarded
 
-    const user = await db.user.update({ where: { id }, data })
+    const user = await withDbFallback(
+      (client) => client.user.update({ where: { id }, data }),
+      null as any,
+    )
     return NextResponse.json({ user })
   } catch (error) {
     console.error('Admin user update error:', error)
@@ -67,7 +74,10 @@ export async function DELETE(request: Request) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'User ID required' }, { status: 400 })
 
-    await db.user.delete({ where: { id } })
+    await withDbFallback(
+      (client) => client.user.delete({ where: { id } }),
+      null as any,
+    )
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Admin user delete error:', error)

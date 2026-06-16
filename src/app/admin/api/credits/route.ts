@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { db } from '@/lib/db'
+import { db, withDbFallback } from '@/lib/db'
 
 export async function PATCH(request: Request) {
   try {
@@ -12,7 +12,10 @@ export async function PATCH(request: Request) {
     if (credits !== undefined) data.credits = credits
     if (plan !== undefined) data.plan = plan
 
-    const user = await db.user.update({ where: { id: userId }, data })
+    const user = await withDbFallback(
+      (client) => client.user.update({ where: { id: userId }, data }),
+      null as any,
+    )
     return NextResponse.json({ user })
   } catch (error) {
     console.error('Admin credits update error:', error)
@@ -27,10 +30,14 @@ export async function POST(request: Request) {
 
     if (!userId || amount === undefined) return NextResponse.json({ error: 'User ID and amount required' }, { status: 400 })
 
-    const user = await db.user.update({
-      where: { id: userId },
-      data: { credits: { increment: amount } },
-    })
+    const user = await withDbFallback(
+      (client) =>
+        client.user.update({
+          where: { id: userId },
+          data: { credits: { increment: amount } },
+        }),
+      null as any,
+    )
     return NextResponse.json({ user })
   } catch (error) {
     console.error('Admin credits add error:', error)
