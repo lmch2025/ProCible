@@ -104,3 +104,31 @@ Stage Summary:
 - Backend : nouveau proxy /api/cities avec cache 24h pour respecter la politique Nominatim. /api/prospection génère des leads pour n'importe quelle combinaison de pays/villes.
 - Aucune clé API requise (Nominatim est gratuit et open source).
 - Rétro-compat : les anciennes campagnes avec locations au format "ISO2:CityName" continuent de s'afficher correctement dans l'admin.
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Composant CTA sticky « Nouvelle recherche » + comportement ultra-agréable au scroll
+
+Work Log:
+- Créé src/components/procible/ProspectionCTA.tsx : composant CTA autonome qui ouvre le ProspectionForm via `setShowProspectionForm(true)`. Design : pill arrondi full-width avec gradient coral→violet, halo flou glow, streak shimmer animé (motion x: 0%→450%), icône Plus dans cercle blanc/tanslucent avec rotation 360° sur 6s, texte « Nouvelle recherche » + icône Sparkles. Animation float continue y: [0,-2,0] sur 3.5s. whileTap scale 0.97.
+- Stratégie sticky bulletproof : le composant mesure dynamiquement la hauteur du header frère précédent (previousElementSibling) via ResizeObserver, et applique `style={{ top: headerHeight - 1 + 'px' }}` sur le wrapper sticky. Ainsi le CTA se cale exactement sous le header quel que soit l'écran (Home ~88px, Leads ~148px avec tabs, Notifications ~96px). z-30 (sous header z-40, au-dessus du contenu). Fond dégradé from-background via-background/95 to-transparent pour fondre visuellement avec le header au-dessus et le contenu en dessous.
+- Placé `<ProspectionCTA />` juste après le header sticky dans 3 écrans :
+  • src/components/procible/HomeScreen.tsx — après le header « Bonjour ProCible »
+  • src/components/procible/LeadsScreen.tsx — après le header + tabs « Mes Clients »
+  • src/components/procible/NotificationsScreen.tsx — après le header « Notifications »
+- Pas placé sur Profile/Preferences/Credits/LeadDetail/Onboarding car ces écrans ne contiennent pas de données issues de recherches.
+- Comportement au scroll vérifié par browser automation (iPhone 14 emulation) :
+  • Home scrollé 800px : header « Bonjour ProCible 5 crédits » pinned top:0, CTA « Nouvelle recherche » pinned juste en-dessous, contenu (cartes statut, performance, Actions récentes) défile sous les deux.
+  • Leads scrollé 500px : header « Mes Clients » + tabs pinned top:0, CTA pinned juste en-dessous, liste clients défile.
+  • Notifications scrollé 300px : header « Notifications 3 non lues » pinned, CTA pinned juste en-dessous, liste notifs défile.
+  • Profile : aucun CTA visible (comportement attendu).
+- Clic sur le CTA ouvre bien le bottom-sheet ProspectionForm (vérifié : snapshot montre le header « Nouvelle campagne » + champ produit + zones cibles + bouton « Lancer la campagne »).
+- Lint : aucune nouvelle erreur (5 pré-existantes dans admin tabs non liées).
+- Build : OK.
+
+Stage Summary:
+- Le bouton « + » central du BottomNav reste comme accès rapide permanent.
+- Le nouveau CTA « Nouvelle recherche » est un second point d'entrée plus visible et contextuel, placé juste sous le header sur les 3 écrans à données (Home/Leads/Notifications).
+- Au scroll, header + CTA restent tous les deux pinned en haut (header z-40 au-dessus, CTA z-30 juste en-dessous), tout le reste du contenu défile sous eux. Animation continue float + shimmer + halo glow donne un effet « vivant » très agréable.
+- La hauteur du header est mesurée dynamiquement (ResizeObserver), donc le CTA reste correctement positionné même si les headers changent de hauteur (par exemple quand le nombre de tabs change, ou si l'utilisateur redimensionne la fenêtre).

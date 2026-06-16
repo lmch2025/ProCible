@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { useProcibleStore, STAGE_CONFIG, STAGE_ORDER, type LeadStage } from '@/store/procible-store'
 import { Search, Clock, ChevronRight } from 'lucide-react'
+import ProspectionCTA from './ProspectionCTA'
 
 const sourceConfig: Record<string, { bg: string; text: string; label: string }> = {
   maps: { bg: 'bg-[#4CAF50]/10', text: 'text-[#4CAF50]', label: 'Maps' },
@@ -61,6 +62,9 @@ export default function LeadsScreen() {
           })}
         </div>
       </div>
+
+      {/* Sticky CTA — appears below header, stays fixed when scrolling */}
+      <ProspectionCTA />
 
       {/* Leads list */}
       <div className="flex-1 px-5 mt-4 overflow-y-auto custom-scrollbar">

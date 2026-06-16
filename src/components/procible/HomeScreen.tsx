@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { useProcibleStore, STAGE_ORDER, STAGE_CONFIG, type LeadStage } from '@/store/procible-store'
 import { Coins, ArrowRight, Moon, TrendingUp, AlertTriangle, RotateCcw, Trophy, Megaphone, MapPin } from 'lucide-react'
+import ProspectionCTA from './ProspectionCTA'
 
 export default function HomeScreen() {
   const { leads, newLeadsCount, navigateTo, plan, credits, campaigns } = useProcibleStore()
@@ -37,6 +38,9 @@ export default function HomeScreen() {
           </div>
         </motion.div>
       </div>
+
+      {/* Sticky CTA — appears below header, stays fixed when scrolling */}
+      <ProspectionCTA />
 
       <div className="px-5 mt-4">
         {/* Main card - New prospects */}

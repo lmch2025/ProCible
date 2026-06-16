@@ -3,6 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore, type AppNotification } from '@/store/procible-store'
 import { Bell, CreditCard, Check, RotateCcw, MessageSquare, Lightbulb, UserPlus } from 'lucide-react'
+import ProspectionCTA from './ProspectionCTA'
 
 const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string }> = {
   new_leads: { icon: UserPlus, color: 'text-[#FF7B54]', bg: 'bg-[#FF7B54]/10' },
@@ -43,6 +44,9 @@ export default function NotificationsScreen() {
           )}
         </motion.div>
       </div>
+
+      {/* Sticky CTA — appears below header, stays fixed when scrolling */}
+      <ProspectionCTA />
 
       <div className="px-5 mt-2">
         {notifications.length === 0 ? (
