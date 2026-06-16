@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { analyzeLead } from '@/lib/ai-service'
 import { db, withDbFallback } from '@/lib/db'
 import { deductCredits, getEffectiveCost, grantCredits } from '@/lib/credits-service'
+import { encodeSuggestion } from '@/lib/ai-content'
 
 export async function POST(request: Request) {
   try {
@@ -95,7 +96,12 @@ export async function POST(request: Request) {
       (client) =>
         (client as any).lead.update({
           where: { id: leadId },
-          data: { score: analysis.score, aiSuggestion: analysis.suggestion },
+          data: {
+            score: analysis.score,
+            // Encode the model id alongside the suggestion so the UI can
+            // surface a "Proposé par <model>" badge for transparency.
+            aiSuggestion: encodeSuggestion(analysis.suggestion, analysis.model),
+          },
         }),
       null as any,
     )
@@ -104,6 +110,9 @@ export async function POST(request: Request) {
       suggestion: analysis.suggestion,
       score: analysis.score,
       leadId,
+      model: analysis.model,
+      modelName: analysis.modelName,
+      local: analysis.local,
       creditsUsed: deduct.cost,
       creditsFreeQuotaUsed: deduct.freeQuotaUsed,
       balanceAfter: deduct.balanceAfter,

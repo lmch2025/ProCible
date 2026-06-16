@@ -1,18 +1,21 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Cpu, Zap, Coins, Shield, Check, Edit3 } from 'lucide-react'
+import { Cpu, Zap, Coins, Shield, Check, Edit3, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { LoadingSkeleton, DetailRow, Badge, BottomSheet, SectionHeader } from './SharedComponents'
 
+// Mirror of the 7-model rotation list actually used by `src/lib/ai-service.ts`.
+// Keeping this in sync lets admins see exactly which models are tried in
+// fallback order, and lets them pick the preferred default.
 const AI_MODELS = [
-  { id: 'deepseek/deepseek-r1-0528:free', name: 'DeepSeek R1' },
-  { id: 'qwen/qwen3-32b:free', name: 'Qwen 3 32B' },
-  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B' },
-  { id: 'meta-llama/llama-4-maverick:free', name: 'Llama 4 Maverick' },
-  { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1' },
-  { id: 'google/gemma-3-12b-it:free', name: 'Gemma 3 12B' },
-  { id: 'microsoft/phi-4-reasoning:free', name: 'Phi-4 Reasoning' },
+  { id: 'nvidia/nemotron-3-ultra-550b-a55b:free', name: 'Nemotron 3 Ultra 550B', size: '550B' },
+  { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B', size: '120B' },
+  { id: 'nousresearch/hermes-3-llama-3.1-405b:free', name: 'Hermes 3 405B', size: '405B' },
+  { id: 'qwen/qwen3-next-80b-a3b-instruct:free', name: 'Qwen3 Next 80B', size: '80B' },
+  { id: 'google/gemma-4-31b-it:free', name: 'Gemma 4 31B', size: '31B' },
+  { id: 'google/gemma-4-26b-a4b-it:free', name: 'Gemma 4 26B', size: '26B' },
+  { id: 'openai/gpt-oss-20b:free', name: 'GPT-OSS 20B', size: '20B' },
 ]
 
 export default function AISettingsTab() {
@@ -84,17 +87,29 @@ export default function AISettingsTab() {
 
       {/* Model Chain */}
       <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Chaine de modeles (fallback)</h3>
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="text-sm font-semibold text-gray-900">Chaîne de modèles (rotation)</h3>
+          <Badge label={`${AI_MODELS.length} modèles`} color="bg-[#6C3FA9]/10 text-[#6C3FA9]" />
+        </div>
+        <p className="text-[11px] text-gray-500 mb-3 flex items-start gap-1.5">
+          <Sparkles className="w-3 h-3 mt-0.5 shrink-0 text-[#FF7B54]" />
+          Chaque requête IA essaie les modèles dans cet ordre. Si un modèle
+          renvoie 429 (surcharge) ou 5xx, il est mis en pause 60s et le
+          suivant prend le relais automatiquement.
+        </p>
         <div className="space-y-2">
           {AI_MODELS.map((model, i) => (
             <div key={model.id} className="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
-              <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white text-[10px] font-bold">{i + 1}</span>
-              <div className="flex-1">
-                <p className="text-sm font-medium text-gray-900">{model.name}</p>
-                <p className="text-[10px] text-gray-400 font-mono">{model.id}</p>
+              <span className="w-6 h-6 rounded-lg bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                {i + 1}
+              </span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{model.name}</p>
+                <p className="text-[10px] text-gray-400 font-mono truncate">{model.id}</p>
               </div>
+              <Badge label={model.size} color="bg-[#2EC4B6]/10 text-[#2EC4B6]" />
               {(settings.ai_model_default === model.id || (!settings.ai_model_default && i === 0)) && (
-                <Badge label="Defaut" color="bg-[#FF7B54]/10 text-[#FF7B54]" />
+                <Badge label="Défaut" color="bg-[#FF7B54]/10 text-[#FF7B54]" />
               )}
             </div>
           ))}
@@ -133,8 +148,14 @@ export default function AISettingsTab() {
                   onClick={() => { setEditValue(model.id) }}
                   className={`w-full p-3 rounded-xl text-sm font-medium flex items-center gap-3 transition-colors ${editValue === model.id ? 'bg-[#FF7B54]/10 text-[#FF7B54] ring-2 ring-[#FF7B54]/30' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
                 >
-                  {model.name}
-                  {editValue === model.id && <Check className="w-4 h-4 ml-auto" />}
+                  <div className="flex-1 text-left">
+                    <p>{model.name}</p>
+                    <p className="text-[10px] font-mono opacity-60">{model.id}</p>
+                  </div>
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#2EC4B6]/10 text-[#2EC4B6]">
+                    {model.size}
+                  </span>
+                  {editValue === model.id && <Check className="w-4 h-4" />}
                 </button>
               ))}
             </div>

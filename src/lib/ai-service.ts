@@ -577,7 +577,7 @@ export async function analyzeLead(params: {
   stage: string
   daysSinceLastContact: number | null
   source: string
-}): Promise<{ suggestion: string; score: number }> {
+}): Promise<{ suggestion: string; score: number; model: string; modelName: string; local: boolean }> {
   const { leadName, business, sector, city, contactCount, stage, daysSinceLastContact, source } = params
 
   // Score calculation (local, deterministic)
@@ -596,7 +596,13 @@ export async function analyzeLead(params: {
 
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) {
-    return { suggestion: generateLocalSuggestion(stage, contactCount, daysSinceLastContact), score }
+    return {
+      suggestion: generateLocalSuggestion(stage, contactCount, daysSinceLastContact),
+      score,
+      model: 'local-fallback',
+      modelName: 'Fallback Local',
+      local: true,
+    }
   }
 
   try {
@@ -615,9 +621,21 @@ export async function analyzeLead(params: {
       { maxTokens: 100, temperature: 0.5, preferSmall: true },
     )
 
-    return { suggestion: response.content, score }
+    return {
+      suggestion: response.content,
+      score,
+      model: response.model,
+      modelName: response.modelName,
+      local: response.local,
+    }
   } catch {
-    return { suggestion: generateLocalSuggestion(stage, contactCount, daysSinceLastContact), score }
+    return {
+      suggestion: generateLocalSuggestion(stage, contactCount, daysSinceLastContact),
+      score,
+      model: 'local-fallback',
+      modelName: 'Fallback Local',
+      local: true,
+    }
   }
 }
 

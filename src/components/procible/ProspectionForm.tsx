@@ -2,9 +2,10 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore } from '@/store/procible-store'
-import { X, Image as ImageIcon, MapPin, Send, Loader2, Plus, Check, Globe2, Search, AlertCircle, Coins, Zap } from 'lucide-react'
+import { X, Image as ImageIcon, MapPin, Send, Loader2, Plus, Check, Globe2, Search, AlertCircle, Coins, Zap, Cpu } from 'lucide-react'
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
+import { modelDisplayName, modelBadgeColor } from '@/lib/ai-content'
 import {
   ALL_COUNTRIES,
   iso2ToFlag,
@@ -229,7 +230,8 @@ export default function ProspectionForm() {
 
         // Build a rich description from the AI interpretation if available.
         // This surfaces the AI's value to the user immediately: which buyer
-        // segments were targeted, which competitor types were excluded.
+        // segments were targeted, which competitor types were excluded, and
+        // which model produced the interpretation.
         let description: string | undefined
         if (data.interpretation) {
           const interp = data.interpretation
@@ -250,12 +252,27 @@ export default function ProspectionForm() {
         )
 
         // If interpretation was generated, show a second informational toast
-        // with the buyer persona so the user understands the targeting.
+        // with the buyer persona and the model name so the user understands
+        // both the targeting AND which AI produced it.
         if (data.interpretation?.buyerPersona) {
+          const interp = data.interpretation
+          const modelId = interp.model || ''
+          const modelLabel = modelDisplayName(modelId)
+          const personaDescription = modelLabel
+            ? `${interp.buyerPersona} · Proposé par ${modelLabel}`
+            : interp.buyerPersona
           setTimeout(() => {
             toast.info('Ciblage IA appliqué', {
-              description: data.interpretation.buyerPersona,
-              duration: 6000,
+              description: personaDescription,
+              duration: 6500,
+              icon: modelId ? (
+                <span
+                  className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[8px] font-bold ${modelBadgeColor(modelId)}`}
+                  title={`Modèle IA : ${modelLabel}`}
+                >
+                  <Cpu className="w-2.5 h-2.5" />
+                </span>
+              ) : undefined,
             })
           }, 800)
         }

@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Users, Contact, Megaphone, Coins,
   Bell, Settings, Cpu, MessageSquare, FileText, Shield,
-  Menu, X, Grid3X3
+  Menu, X, Grid3X3, Sparkles
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
 
@@ -20,8 +20,9 @@ const AISettingsTab = dynamic(() => import('./components/AISettingsTab'), { ssr:
 const ContactsTab = dynamic(() => import('./components/ContactsTab'), { ssr: false })
 const AuditLogTab = dynamic(() => import('./components/AuditLogTab'), { ssr: false })
 const SystemTab = dynamic(() => import('./components/SystemTab'), { ssr: false })
+const AIFollowUpPlansTab = dynamic(() => import('./components/AIFollowUpPlansTab'), { ssr: false })
 
-type AdminTab = 'dashboard' | 'users' | 'leads' | 'campaigns' | 'credits' | 'notifications' | 'ai' | 'contacts' | 'audit' | 'system'
+type AdminTab = 'dashboard' | 'users' | 'leads' | 'campaigns' | 'credits' | 'notifications' | 'ai' | 'contacts' | 'audit' | 'system' | 'ai_plans'
 
 interface TabDef {
   id: AdminTab
@@ -39,6 +40,7 @@ const tabs: TabDef[] = [
   { id: 'notifications', label: 'Alertes', icon: Bell, color: 'from-[#6C3FA9] to-[#2EC4B6]', section: 'principal' },
   { id: 'campaigns', label: 'Campagnes', icon: Megaphone, color: 'from-[#2EC4B6] to-[#4CAF50]', section: 'donnees' },
   { id: 'contacts', label: 'Contacts', icon: MessageSquare, color: 'from-[#2EC4B6] to-[#6C3FA9]', section: 'donnees' },
+  { id: 'ai_plans', label: 'Plans IA', icon: Sparkles, color: 'from-[#6C3FA9] to-[#FFB347]', section: 'donnees' },
   { id: 'ai', label: 'IA Config', icon: Cpu, color: 'from-[#6C3FA9] to-[#FF7B54]', section: 'config' },
   { id: 'audit', label: 'Journal', icon: FileText, color: 'from-[#FFB347] to-[#2EC4B6]', section: 'config' },
   { id: 'system', label: 'Système', icon: Settings, color: 'from-[#2EC4B6] to-[#4CAF50]', section: 'config' },
@@ -60,6 +62,7 @@ export default function AdminPanel() {
     credits: CreditsTab,
     notifications: NotificationsTab,
     ai: AISettingsTab,
+    ai_plans: AIFollowUpPlansTab,
     contacts: ContactsTab,
     audit: AuditLogTab,
     system: SystemTab,

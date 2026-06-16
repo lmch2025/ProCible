@@ -140,16 +140,55 @@ export const DEFAULT_CREDIT_RULES: Array<Omit<CreditRule, 'id'>> = [
 ]
 
 /**
- * Seed default credit rules if the table is empty. Idempotent — does nothing
- * if rules already exist.
+ * Ensure all default credit rules exist in the DB. Idempotent + self-healing:
+ *   - If the table is empty, seeds all default rules.
+ *   - If some rules are missing (e.g. a new rule was added in a later release
+ *     but the DB was seeded with an older version), upserts only the missing
+ *     ones by `action` key. Existing rules are left untouched so admin edits
+ *     to cost / freeQuotaPerDay / enabled are preserved.
  */
 export async function ensureDefaultCreditRules(): Promise<void> {
   await withDbFallback(
     async (client) => {
+      // Fast path: if table is empty, seed everything in one go.
       const count = await (client as any).creditRule.count()
-      if (count > 0) return
+      if (count === 0) {
+        for (const rule of DEFAULT_CREDIT_RULES) {
+          await (client as any).creditRule.create({ data: rule })
+        }
+        return
+      }
+
+      // Self-healing path: find which default actions are missing and upsert
+      // only those. This brings dev DBs up to date when we add new rules
+      // (e.g. ai.follow_up_plan, ai.campaign_interpret) without requiring
+      // a destructive `db push --accept-data-loss`.
+      const existingActions = new Set(
+        (
+          await (client as any).creditRule.findMany({
+            select: { action: true },
+          })
+        ).map((r: any) => r.action),
+      )
+
       for (const rule of DEFAULT_CREDIT_RULES) {
-        await (client as any).creditRule.create({ data: rule })
+        if (existingActions.has(rule.action)) continue
+        try {
+          await (client as any).creditRule.upsert({
+            where: { action: rule.action },
+            update: {
+              label: rule.label,
+              cost: rule.cost,
+              description: rule.description,
+              enabled: rule.enabled,
+              freeQuotaPerDay: rule.freeQuotaPerDay,
+            },
+            create: rule,
+          })
+          console.log(`[credits] seeded missing rule: ${rule.action}`)
+        } catch (e) {
+          console.warn(`[credits] failed to upsert rule ${rule.action}:`, e)
+        }
       }
     },
     null as any,

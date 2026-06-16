@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Trash2, Edit3, Check, ChevronRight, MapPin, Phone as PhoneIcon, Mail, Calendar, MessageSquare } from 'lucide-react'
+import { Trash2, Edit3, Check, ChevronRight, MapPin, Phone as PhoneIcon, Mail, Calendar, MessageSquare, Cpu } from 'lucide-react'
 import { toast } from 'sonner'
 import { SearchBar, FilterSelect, Pagination, EmptyState, LoadingSkeleton, AvatarInitial, Badge, BottomSheet, DetailRow, STAGE_COLORS, STAGE_LABELS, SectionHeader, ConfirmDialog } from './SharedComponents'
+import { parseStoredSuggestion, modelDisplayName, modelBadgeColor } from '@/lib/ai-content'
 
 export default function LeadsTab() {
   const [leads, setLeads] = useState<any[]>([])
@@ -155,12 +156,43 @@ export default function LeadsTab() {
             <DetailRow label="Contacts" value={selectedLead._count?.contacts || 0} />
             <DetailRow label="Proprietaire" value={selectedLead.user?.name || selectedLead.user?.phone || '—'} />
             <DetailRow label="Cree le" value={new Date(selectedLead.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} />
-            {selectedLead.aiSuggestion && (
-              <div className="bg-[#6C3FA9]/5 rounded-xl p-3 border border-[#6C3FA9]/10">
-                <p className="text-[10px] text-[#6C3FA9] font-semibold mb-1">CONSEIL IA</p>
-                <p className="text-xs text-gray-700">{selectedLead.aiSuggestion}</p>
-              </div>
-            )}
+            {selectedLead.aiSuggestion && (() => {
+              const parsed = parseStoredSuggestion(selectedLead.aiSuggestion)
+              if (parsed.kind === 'plan') {
+                // Follow-up plans have their own dedicated admin tab — just
+                // surface a link badge here so admins know one exists.
+                return (
+                  <div className="bg-[#FF7B54]/5 rounded-xl p-3 border border-[#FF7B54]/10">
+                    <p className="text-[10px] text-[#FF7B54] font-semibold mb-1 flex items-center gap-1.5">
+                      <Cpu className="w-3 h-3" />
+                      PLAN DE SUIVI IA
+                      <span className={`ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(parsed.modelId)}`}>
+                        Proposé par {parsed.modelDisplay}
+                      </span>
+                    </p>
+                    <p className="text-xs text-gray-700">{parsed.content}</p>
+                    <p className="text-[10px] text-gray-400 mt-1.5">
+                      Voir le détail dans l'onglet « Plans IA »
+                    </p>
+                  </div>
+                )
+              }
+              // Plain suggestion (analyze / draft)
+              return (
+                <div className="bg-[#6C3FA9]/5 rounded-xl p-3 border border-[#6C3FA9]/10">
+                  <p className="text-[10px] text-[#6C3FA9] font-semibold mb-1 flex items-center gap-1.5">
+                    <Cpu className="w-3 h-3" />
+                    CONSEIL IA
+                    {parsed.modelDisplay && (
+                      <span className={`ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(parsed.modelId)}`}>
+                        Proposé par {parsed.modelDisplay}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-gray-700">{parsed.content}</p>
+                </div>
+              )
+            })()}
             {selectedLead.notes && (
               <div className="bg-gray-50 rounded-xl p-3">
                 <p className="text-[10px] text-gray-500 font-semibold mb-1">NOTES</p>

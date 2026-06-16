@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db, withDbFallback } from '@/lib/db'
 import { deductCredits, getEffectiveCost, grantCredits } from '@/lib/credits-service'
 import { generateFollowUpPlan, type FollowUpPlan } from '@/lib/ai-service'
+import { encodePlan, PLAN_MARKER } from '@/lib/ai-content'
 
 /**
  * POST /api/ai/follow-up-plan
@@ -22,8 +23,6 @@ import { generateFollowUpPlan, type FollowUpPlan } from '@/lib/ai-service'
  *
  * On AI failure, credits are refunded.
  */
-
-const PLAN_MARKER = '__FOLLOW_UP_PLAN__'
 
 /** Helper for safe refund. */
 async function grantCreditsSafe(userId: string, amount: number, note: string) {
@@ -131,12 +130,11 @@ export async function POST(request: Request) {
 
     // --- Persist the plan in Lead.aiSuggestion (overload with marker) ---
     // Format: `__FOLLOW_UP_PLAN__<json>` so the UI can detect & parse it.
-    const planJson = JSON.stringify(plan)
     await withDbFallback(
       (client) => (client as any).lead.update({
         where: { id: leadId },
         data: {
-          aiSuggestion: `${PLAN_MARKER}${planJson}`,
+          aiSuggestion: encodePlan(plan),
         },
       }),
       null as any,

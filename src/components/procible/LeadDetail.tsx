@@ -2,10 +2,11 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore, STAGE_CONFIG, STAGE_ORDER, type LeadStage } from '@/store/procible-store'
-import { Phone, MessageCircle, MapPin, Building2, ArrowLeft, Volume2, Clock, Copy, Check, ChevronDown, Send, FileText, Lightbulb, Zap, Coins, Loader2, Calendar, ChevronRight, Sparkles } from 'lucide-react'
+import { Phone, MessageCircle, MapPin, Building2, ArrowLeft, Volume2, Clock, Copy, Check, ChevronDown, Send, FileText, Lightbulb, Zap, Coins, Loader2, Calendar, ChevronRight, Sparkles, Cpu } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import ConfettiEffect from './ConfettiEffect'
 import { toast } from 'sonner'
+import { parseStoredSuggestion, modelDisplayName, modelBadgeColor } from '@/lib/ai-content'
 
 const sourceConfig: Record<string, { bg: string; text: string; label: string }> = {
   maps: { bg: 'bg-[#4CAF50]', text: 'text-white', label: 'Google Maps' },
@@ -48,7 +49,7 @@ const channelConfig: Record<FollowUpStage['channel'], { icon: typeof Phone; colo
 }
 
 export default function LeadDetail() {
-  const { leads, selectedLeadId, updateLeadStage, goBack, decrementCredits, aiDraft, aiDraftLoading, setAiDraft, setAiDraftLoading, setAiModel, logContact, credits, setCredits } = useProcibleStore()
+  const { leads, selectedLeadId, updateLeadStage, goBack, decrementCredits, aiDraft, aiDraftLoading, aiModel, setAiDraft, setAiDraftLoading, setAiModel, logContact, credits, setCredits } = useProcibleStore()
   const [showConfetti, setShowConfetti] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showStagePicker, setShowStagePicker] = useState(false)
@@ -174,7 +175,9 @@ export default function LeadDetail() {
       if (res.ok) {
         const data = await res.json()
         setAiDraft(data.draft)
-        setAiModel(data.model)
+        // Store the model id (not the display name) so the UI badge can
+        // derive both the color and the display label.
+        setAiModel(data.modelId || data.model || 'local-fallback')
       } else {
         const fallbacks: Record<string, string> = {
           whatsapp: `Bonjour ${lead.name} ! Je me permets de vous contacter suite à la découverte de votre activité${lead.business ? ` "${lead.business}"` : ''}. Seriez-vous disponible pour un échange rapide cette semaine ?`,
@@ -182,11 +185,11 @@ export default function LeadDetail() {
           email: `Objet : Opportunité de collaboration\n\nBonjour ${lead.name},\n\nJ'ai découvert votre activité${lead.business ? ` "${lead.business}"` : ''} et je pense qu'il y a des synergies possibles.\n\nSeriez-vous disponible pour un échange ?\n\nCordialement`,
         }
         setAiDraft(fallbacks[channel])
-        setAiModel('Local')
+        setAiModel('local-fallback')
       }
     } catch {
       setAiDraft(`Bonjour ${lead.name} ! Je souhaiterais échanger avec vous concernant une opportunité de collaboration.`)
-      setAiModel('Local')
+      setAiModel('local-fallback')
     }
     setAiDraftLoading(false)
   }
@@ -331,15 +334,32 @@ export default function LeadDetail() {
             </div>
 
             {/* AI Suggestion */}
-            {lead.aiSuggestion && (
-              <div className="mt-4 p-3 rounded-xl bg-[#6C3FA9]/5 border border-[#6C3FA9]/10">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Lightbulb className="w-3.5 h-3.5 text-[#6C3FA9]" />
-                  <span className="text-xs font-semibold text-[#6C3FA9]">Conseil IA</span>
+            {lead.aiSuggestion && (() => {
+              const parsed = parseStoredSuggestion(lead.aiSuggestion)
+              // Don't render this block for follow-up plans — they're shown in
+              // the dedicated plan section below.
+              if (parsed.kind === 'plan') return null
+              const display = parsed.modelDisplay
+              const showBadge = !!display
+              return (
+                <div className="mt-4 p-3 rounded-xl bg-[#6C3FA9]/5 border border-[#6C3FA9]/10">
+                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                    <Lightbulb className="w-3.5 h-3.5 text-[#6C3FA9]" />
+                    <span className="text-xs font-semibold text-[#6C3FA9]">Conseil IA</span>
+                    {showBadge && (
+                      <span
+                        className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(parsed.modelId)}`}
+                        title={`Modèle IA : ${display}`}
+                      >
+                        <Cpu className="w-2.5 h-2.5" />
+                        Proposé par {display}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-foreground/80">{parsed.content}</p>
                 </div>
-                <p className="text-xs text-foreground/80">{lead.aiSuggestion}</p>
-              </div>
-            )}
+              )
+            })()}
           </div>
         </div>
       </motion.div>
@@ -397,12 +417,21 @@ export default function LeadDetail() {
             className="px-5 mt-4 overflow-hidden"
           >
             <div className="bg-card rounded-2xl border border-[#6C3FA9]/20 shadow-lg overflow-hidden">
-              <div className="px-4 py-3 bg-[#6C3FA9]/5 flex items-center justify-between">
+              <div className="px-4 py-3 bg-[#6C3FA9]/5 flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <Lightbulb className="w-4 h-4 text-[#6C3FA9]" />
                   <span className="text-sm font-semibold text-[#6C3FA9]">
                     Brouillon IA {aiDraftLoading ? '...' : `(${aiChannel})`}
                   </span>
+                  {aiModel && !aiDraftLoading && (
+                    <span
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(aiModel)}`}
+                      title={`Modèle IA : ${modelDisplayName(aiModel)}`}
+                    >
+                      <Cpu className="w-2.5 h-2.5" />
+                      Proposé par {modelDisplayName(aiModel)}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
@@ -444,8 +473,12 @@ export default function LeadDetail() {
             <h3 className="text-sm font-semibold text-muted-foreground">Plan de suivi IA</h3>
           </div>
           {plan && (
-            <span className="text-[10px] text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-              {plan.stages.length} étapes · {plan.model?.split('/').pop()?.replace(':free', '') || 'IA'}
+            <span
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${modelBadgeColor(plan.model)}`}
+              title={`Modèle IA : ${modelDisplayName(plan.model)}`}
+            >
+              <Cpu className="w-2.5 h-2.5" />
+              {plan.stages.length} étapes · Proposé par {modelDisplayName(plan.model)}
             </span>
           )}
         </div>
@@ -504,9 +537,16 @@ export default function LeadDetail() {
           >
             {/* Strategy summary */}
             <div className="bg-[#6C3FA9]/5 rounded-2xl border border-[#6C3FA9]/20 p-3.5">
-              <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <Lightbulb className="w-3.5 h-3.5 text-[#6C3FA9]" />
                 <span className="text-xs font-semibold text-[#6C3FA9]">Stratégie</span>
+                <span
+                  className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(plan.model)}`}
+                  title={`Modèle IA : ${modelDisplayName(plan.model)}`}
+                >
+                  <Cpu className="w-2.5 h-2.5" />
+                  Proposé par {modelDisplayName(plan.model)}
+                </span>
               </div>
               <p className="text-xs text-foreground/80 leading-relaxed">{plan.strategy}</p>
             </div>
