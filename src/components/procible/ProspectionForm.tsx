@@ -2,7 +2,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore } from '@/store/procible-store'
-import { X, Image as ImageIcon, MapPin, Send, Loader2, Plus, Check, Globe2, Search, AlertCircle } from 'lucide-react'
+import { X, Image as ImageIcon, MapPin, Send, Loader2, Plus, Check, Globe2, Search, AlertCircle, Coins, Zap } from 'lucide-react'
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
 import {
@@ -26,13 +26,44 @@ interface CitySuggestion {
   county?: string
 }
 
+interface CreditRuleLite {
+  action: string
+  label: string
+  cost: number
+  freeQuotaPerDay: number
+  enabled: boolean
+  description: string | null
+}
+
 export default function ProspectionForm() {
-  const { showProspectionForm, setShowProspectionForm, addCampaign, prospectionSubmitting, setProspectionSubmitting } = useProcibleStore()
+  const { showProspectionForm, setShowProspectionForm, addCampaign, prospectionSubmitting, setProspectionSubmitting, credits, navigateTo } = useProcibleStore()
 
   const [productName, setProductName] = useState('')
   const [selected, setSelected] = useState<SelectedEntry[]>([])
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // --- Credit rule for prospection.launch ---
+  const [launchRule, setLaunchRule] = useState<CreditRuleLite | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch('/api/credits')
+        if (!res.ok) return
+        const data = await res.json()
+        if (cancelled) return
+        const rule = (data.rules || []).find((r: CreditRuleLite) => r.action === 'prospection.launch')
+        if (rule) setLaunchRule(rule)
+      } catch {
+        /* silent — rule stays null, button shows no cost */
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const launchCost = launchRule?.cost ?? 0
+  const insufficientCredits = launchCost > 0 && credits < launchCost
 
   // --- Country autocomplete state ---
   const [countryQuery, setCountryQuery] = useState('')
@@ -507,11 +538,45 @@ export default function ProspectionForm() {
                 />
               </div>
 
+              {/* Insufficient credits warning */}
+              {insufficientCredits && !prospectionSubmitting && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex items-start gap-3 p-3.5 rounded-2xl bg-[#EF4444]/8 border border-[#EF4444]/25"
+                >
+                  <AlertCircle className="w-5 h-5 text-[#EF4444] shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[#EF4444]">
+                      Crédits insuffisants
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Solde : <span className="font-semibold tabular-nums">{credits}</span> · Requis : <span className="font-semibold tabular-nums">{launchCost}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowProspectionForm(false)
+                        navigateTo('credits')
+                      }}
+                      className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#FF7B54] hover:text-[#FF7B54]/80 transition-colors"
+                    >
+                      <Coins className="w-3.5 h-3.5" />
+                      Recharger mes crédits
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Submit */}
               <button
                 onClick={handleSubmit}
-                disabled={prospectionSubmitting || !productName.trim() || selected.length === 0}
-                className="w-full py-4 rounded-2xl procible-gradient text-white font-bold text-base shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                disabled={prospectionSubmitting || !productName.trim() || selected.length === 0 || insufficientCredits}
+                className={`w-full py-4 rounded-2xl text-white font-bold text-base shadow-lg transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                  insufficientCredits
+                    ? 'bg-gradient-to-r from-[#EF4444] to-[#FF7B54]'
+                    : 'procible-gradient'
+                }`}
                 style={{ minHeight: 56 }}
               >
                 {prospectionSubmitting ? (
@@ -522,7 +587,20 @@ export default function ProspectionForm() {
                 ) : (
                   <>
                     <Send className="w-5 h-5" />
-                    Lancer la campagne{locationCount > 0 ? ` · ${locationCount} zone${locationCount > 1 ? 's' : ''}` : ''}
+                    <span>Lancer la campagne</span>
+                    {locationCount > 0 && (
+                      <span className="opacity-80 text-sm font-semibold">· {locationCount} zone{locationCount > 1 ? 's' : ''}</span>
+                    )}
+                    {launchCost > 0 && (
+                      <span
+                        className={`ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold ${
+                          insufficientCredits ? 'bg-white/20' : 'bg-white/15'
+                        }`}
+                      >
+                        <Coins className="w-3.5 h-3.5" />
+                        {launchCost}
+                      </span>
+                    )}
                   </>
                 )}
               </button>
@@ -532,6 +610,15 @@ export default function ProspectionForm() {
                 {locationCount > 0
                   ? `${locationCount} zone${locationCount > 1 ? 's' : ''}`
                   : 'les zones sélectionnées'}
+                {launchCost > 0 && (
+                  <>
+                    {' · '}
+                    <span className="inline-flex items-center gap-1 text-[#FF7B54] font-medium">
+                      <Zap className="w-3 h-3" />
+                      {launchCost} crédit{launchCost > 1 ? 's' : ''} déduits au lancement
+                    </span>
+                  </>
+                )}
               </p>
             </div>
           </motion.div>

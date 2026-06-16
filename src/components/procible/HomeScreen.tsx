@@ -1,6 +1,6 @@
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore, STAGE_ORDER, STAGE_CONFIG, type LeadStage } from '@/store/procible-store'
 import { Coins, ArrowRight, Moon, TrendingUp, AlertTriangle, RotateCcw, Trophy, Megaphone, MapPin, Plus } from 'lucide-react'
 import ProspectionCTA from './ProspectionCTA'
@@ -23,6 +23,9 @@ export default function HomeScreen() {
 
   const activeCampaigns = campaigns.filter(c => c.status === 'active')
 
+  const LOW_CREDIT_THRESHOLD = 2
+  const isLowCredits = credits <= LOW_CREDIT_THRESHOLD
+
   return (
     <div className="pb-28">
       {/* Header - sticky */}
@@ -32,21 +35,80 @@ export default function HomeScreen() {
             <p className="text-sm text-muted-foreground">Bonjour</p>
             <h1 className="text-2xl font-bold procible-gradient-text">ProCible</h1>
           </div>
-          <button
-            type="button"
-            onClick={() => navigateTo('credits')}
-            aria-label="Acheter des crédits"
-            className="group flex items-center gap-2 bg-secondary hover:bg-secondary/70 rounded-full pl-2.5 pr-3 py-1.5 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7B54]/40"
-          >
-            <span className="relative flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] shadow-sm">
-              <Coins className="w-3.5 h-3.5 text-white" />
-              <span className="absolute -inset-1 rounded-full bg-[#FF7B54]/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity" />
-            </span>
-            <span className="text-sm font-semibold text-secondary-foreground tabular-nums">{credits}</span>
-            <span className="text-xs text-muted-foreground hidden xs:inline">crédits</span>
-            <Plus className="w-3.5 h-3.5 text-[#FF7B54] opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" />
-          </button>
+          <div className="relative">
+            {/* Pulsing low-credit halo — only when credits ≤ 2 */}
+            {isLowCredits && (
+              <motion.span
+                aria-hidden
+                className="absolute inset-0 rounded-full bg-[#EF4444]/30 pointer-events-none"
+                animate={{ scale: [1, 1.18, 1], opacity: [0.55, 0, 0.55] }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => navigateTo('credits')}
+              aria-label={isLowCredits ? `Crédits faibles : ${credits}. Acheter des crédits` : 'Acheter des crédits'}
+              className={`group relative flex items-center gap-2 rounded-full pl-2.5 pr-3 py-1.5 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7B54]/40 ${
+                isLowCredits
+                  ? 'bg-[#EF4444]/10 hover:bg-[#EF4444]/15 ring-1 ring-[#EF4444]/40'
+                  : 'bg-secondary hover:bg-secondary/70'
+              }`}
+            >
+              <span className={`relative flex items-center justify-center w-6 h-6 rounded-full shadow-sm ${isLowCredits ? 'bg-gradient-to-br from-[#EF4444] to-[#FF7B54]' : 'bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9]'}`}>
+                <Coins className="w-3.5 h-3.5 text-white" />
+                <span className="absolute -inset-1 rounded-full bg-[#FF7B54]/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity" />
+              </span>
+              <span className={`text-sm font-semibold tabular-nums ${isLowCredits ? 'text-[#EF4444]' : 'text-secondary-foreground'}`}>{credits}</span>
+              <span className="text-xs text-muted-foreground hidden xs:inline">crédits</span>
+              <Plus className={`w-3.5 h-3.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all ${isLowCredits ? 'text-[#EF4444]' : 'text-[#FF7B54]'}`} />
+
+              {/* Small pulsing badge dot at top-right when low */}
+              {isLowCredits && (
+                <motion.span
+                  aria-hidden
+                  className="absolute -top-0.5 -right-0.5 flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[#EF4444] border-2 border-background"
+                  animate={{ scale: [1, 1.25, 1] }}
+                  transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+                >
+                  <span className="text-[8px] font-bold text-white leading-none">!</span>
+                </motion.span>
+              )}
+            </button>
+          </div>
         </motion.div>
+
+        {/* Low-credit inline banner */}
+        <AnimatePresence>
+          {isLowCredits && (
+            <motion.button
+              type="button"
+              onClick={() => navigateTo('credits')}
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 10 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              transition={{ duration: 0.25 }}
+              className="w-full overflow-hidden flex items-center gap-2.5 px-3 py-2 rounded-2xl bg-[#EF4444]/8 border border-[#EF4444]/25 text-left active:scale-[0.99] transition-transform"
+            >
+              <motion.span
+                className="flex items-center justify-center w-7 h-7 rounded-full bg-[#EF4444] shrink-0"
+                animate={{ scale: [1, 1.12, 1] }}
+                transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <AlertTriangle className="w-4 h-4 text-white" />
+              </motion.span>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-[#EF4444]">
+                  Crédits faibles — il ne vous reste que {credits} crédit{credits > 1 ? 's' : ''}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Rechargez pour lancer de nouvelles campagnes de prospection
+                </p>
+              </div>
+              <ArrowRight className="w-4 h-4 text-[#EF4444] shrink-0" />
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Sticky CTA — appears below header, stays fixed when scrolling */}
