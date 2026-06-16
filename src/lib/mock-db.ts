@@ -76,6 +76,26 @@ const SETTINGS: AnyRecord[] = [
   { id: 's3', key: 'max_leads_per_campaign', value: '50', description: 'Maximum leads per prospection campaign', updatedAt: daysAgo(8) },
 ]
 
+const CREDIT_RULES: AnyRecord[] = [
+  { id: 'cr1', action: 'prospection.launch', label: 'Lancer une campagne de prospection', cost: 5, description: 'Génération de 3 à 11 leads par ville/pays ciblé', enabled: true, freeQuotaPerDay: 0, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+  { id: 'cr2', action: 'ai.draft', label: 'Génération de message IA (WhatsApp/Appel/Email)', cost: 1, description: 'Draft personnalisé pour un lead', enabled: true, freeQuotaPerDay: 3, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+  { id: 'cr3', action: 'ai.analyze', label: 'Analyse IA & scoring de lead', cost: 2, description: 'Score 0-100 + suggestion de prochaine action', enabled: true, freeQuotaPerDay: 5, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+  { id: 'cr4', action: 'lead.export', label: 'Export CSV de leads', cost: 3, description: 'Export de la liste filtrée au format CSV', enabled: true, freeQuotaPerDay: 0, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+  { id: 'cr5', action: 'lead.reveal_phone', label: 'Révéler le téléphone d\'un lead', cost: 1, description: 'Débloque le n° de téléphone/WhatsApp d\'un lead', enabled: true, freeQuotaPerDay: 10, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+  { id: 'cr6', action: 'ai.suggestion', label: 'Suggestion IA de relance', cost: 1, description: 'Suggestion personnalisée pour relancer un lead', enabled: true, freeQuotaPerDay: 5, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+]
+
+const CREDIT_TRANSACTIONS: AnyRecord[] = [
+  { id: 'ct1', amount: 5, balanceAfter: 5, action: 'signup.bonus', label: 'Crédits de bienvenue', entityId: null, idempotencyKey: null, note: 'Inscription', userId: 'u1', createdAt: daysAgo(2) },
+  { id: 'ct2', amount: 50, balanceAfter: 55, action: 'purchase.pack', label: 'Achat pack 50 crédits', entityId: null, idempotencyKey: null, note: 'Mobile Money', userId: 'u1', createdAt: daysAgo(2) },
+  { id: 'ct3', amount: -5, balanceAfter: 50, action: 'prospection.launch', label: 'Lancer une campagne de prospection', entityId: 'cmp1', idempotencyKey: null, note: null, userId: 'u1', createdAt: daysAgo(7) },
+  { id: 'ct4', amount: -5, balanceAfter: 45, action: 'prospection.launch', label: 'Lancer une campagne de prospection', entityId: 'cmp2', idempotencyKey: null, note: null, userId: 'u2', createdAt: daysAgo(10) },
+  { id: 'ct5', amount: -3, balanceAfter: 42, action: 'prospection.launch', label: 'Lancer une campagne de prospection', entityId: 'cmp3', idempotencyKey: null, note: null, userId: 'u5', createdAt: daysAgo(15) },
+  { id: 'ct6', amount: -1, balanceAfter: 41, action: 'ai.draft', label: 'Génération de message IA (WhatsApp/Appel/Email)', entityId: 'l2', idempotencyKey: null, note: null, userId: 'u1', createdAt: daysAgo(3) },
+  { id: 'ct7', amount: -2, balanceAfter: 39, action: 'ai.analyze', label: 'Analyse IA & scoring de lead', entityId: 'l3', idempotencyKey: null, note: null, userId: 'u2', createdAt: daysAgo(2) },
+  { id: 'ct8', amount: 20, balanceAfter: 42, action: 'admin.grant', label: 'Crédits offerts par l\'admin', entityId: null, idempotencyKey: null, note: 'Bonus fidélité', userId: 'u1', createdAt: daysAgo(1) },
+]
+
 const PREFERENCES: AnyRecord[] = [
   { id: 'p1', sectors: 'Restauration,Santé,Beauté', cities: 'Douala,Yaoundé', businessType: 'PME', userId: 'u1', createdAt: daysAgo(2), updatedAt: daysAgo(1) },
   { id: 'p2', sectors: 'Automobile,Mode', cities: 'Bafoussam,Douala', businessType: 'Commerce', userId: 'u2', createdAt: daysAgo(5), updatedAt: daysAgo(3) },
@@ -97,6 +117,8 @@ const store: Record<string, AnyRecord[]> = {
   appSettings: SETTINGS,
   preference: PREFERENCES,
   admin: ADMINS,
+  creditRule: CREDIT_RULES,
+  creditTransaction: CREDIT_TRANSACTIONS,
 }
 
 const idCounters: Record<string, number> = {}
@@ -227,6 +249,12 @@ function applyInclude(record: AnyRecord, include: AnyRecord | undefined): AnyRec
       out.preferences = store.preference.find(x => x.userId === record.id) || null
       continue
     }
+    if (key === 'creditTransactions') {
+      out.creditTransactions = store.creditTransaction
+        .filter(x => x.userId === record.id)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      continue
+    }
   }
   return out
 }
@@ -302,7 +330,7 @@ class ModelDelegate {
     const data = { ...args.data }
     if (!data.id) data.id = genId(this.model)
     if (!data.createdAt && (this.model !== 'appSettings' && this.model !== 'admin')) data.createdAt = new Date()
-    if (!data.updatedAt && ['user', 'lead', 'prospectionCampaign', 'preference', 'admin', 'appSettings'].includes(this.model)) {
+    if (!data.updatedAt && ['user', 'lead', 'prospectionCampaign', 'preference', 'admin', 'appSettings', 'creditRule'].includes(this.model)) {
       data.updatedAt = new Date()
     }
     // Apply defaults for missing fields
@@ -313,6 +341,8 @@ class ModelDelegate {
       prospectionCampaign: { status: 'active', leadsFound: 0 },
       contactHistory: { aiGenerated: false },
       admin: { role: 'admin' },
+      creditRule: { cost: 1, enabled: true, freeQuotaPerDay: 0 },
+      creditTransaction: { amount: 0, balanceAfter: 0 },
     }
     if (defaults[this.model]) {
       for (const [k, v] of Object.entries(defaults[this.model])) {
@@ -357,7 +387,7 @@ class ModelDelegate {
         record.city = city && city !== 'all' ? city : ''
       }
     }
-    if (['user', 'lead', 'prospectionCampaign', 'preference', 'admin', 'appSettings'].includes(this.model)) {
+    if (['user', 'lead', 'prospectionCampaign', 'preference', 'admin', 'appSettings', 'creditRule'].includes(this.model)) {
       record.updatedAt = new Date()
     }
     if (args?.include) return applyInclude(record, args.include)
@@ -436,6 +466,8 @@ export const mockDb = {
   appSettings: new ModelDelegate('appSettings'),
   preference: new ModelDelegate('preference'),
   admin: new ModelDelegate('admin'),
+  creditRule: new ModelDelegate('creditRule'),
+  creditTransaction: new ModelDelegate('creditTransaction'),
   $disconnect: async () => {},
 }
 

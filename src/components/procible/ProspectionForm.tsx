@@ -189,8 +189,14 @@ export default function ProspectionForm() {
         const data = await res.json()
         if (data.campaign) addCampaign(data.campaign)
         const leadsCount = data.leadsFound ?? 0
+        // Update local balance if returned
+        if (typeof data.balanceAfter === 'number') {
+          const store = useProcibleStore.getState()
+          store.setCredits(data.balanceAfter)
+        }
+        const freeNote = data.creditsFreeQuotaUsed ? ' (quota gratuit)' : ''
         toast.success(
-          `Campagne lancée ! ${leadsCount} client${leadsCount > 1 ? 's' : ''} trouvé${leadsCount > 1 ? 's' : ''} dans ${locationCount} zone${locationCount > 1 ? 's' : ''}.`,
+          `Campagne lancée ! ${leadsCount} client${leadsCount > 1 ? 's' : ''} trouvé${leadsCount > 1 ? 's' : ''} dans ${locationCount} zone${locationCount > 1 ? 's' : ''}.${data.creditsUsed > 0 ? ` −${data.creditsUsed} crédits${freeNote}.` : ''}`,
         )
         setProductName('')
         setSelected([])
@@ -199,6 +205,12 @@ export default function ProspectionForm() {
         setActiveCountry('')
         setImages([])
         setShowProspectionForm(false)
+      } else if (res.status === 402) {
+        const err = await res.json().catch(() => ({}))
+        toast.error(err.error || 'Crédits insuffisants', {
+          description: err.balance !== undefined ? `Solde actuel : ${err.balance} · Requis : ${err.required}` : undefined,
+          duration: 6000,
+        })
       } else {
         const err = await res.json().catch(() => ({}))
         toast.error(err.error || 'Erreur lors du lancement')

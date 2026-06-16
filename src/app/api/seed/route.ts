@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { ensureDefaultCreditRules } from '@/lib/credits-service'
 
 export async function POST() {
   try {
+    // Ensure credit rules exist (idempotent)
+    await ensureDefaultCreditRules()
+
     const user = await db.user.upsert({
       where: { phone: '+237600000000' },
       update: {},

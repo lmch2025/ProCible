@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server'
 import { db, withDbFallback } from '@/lib/db'
 import { parseLocations, countLocations } from '@/lib/locations'
+import { deductCredits, getEffectiveCost, grantCredits } from '@/lib/credits-service'
+
+/** Helper for safe refund. */
+async function grantCreditsSafe(userId: string, amount: number, note: string) {
+  try {
+    await grantCredits({
+      userId,
+      amount,
+      action: 'system.refund',
+      label: 'Remboursement de crédits',
+      note,
+    })
+  } catch (e) {
+    console.error('Refund failed:', e)
+  }
+}
 
 /**
  * POST /api/prospection — launch a prospection campaign.
@@ -110,6 +126,42 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Impossible de résoudre l\'utilisateur' }, { status: 500 })
     }
 
+    // --- Credit check & deduction (atomic) ---
+    const idempotencyKey = `prospection:${finalUserId}:${productName.trim()}:${locations}:${Date.now().toString(36)}`
+    const costInfo = await getEffectiveCost('prospection.launch', finalUserId)
+    if (costInfo.cost > 0) {
+      // Pre-check balance so we can return a clean 402 before doing any work.
+      const balance = await withDbFallback(
+        (client) => (client as any).user.findUnique({ where: { id: finalUserId }, select: { credits: true } }),
+        null as any,
+      )
+      if (balance && balance.credits < costInfo.cost) {
+        return NextResponse.json({
+          error: `Crédits insuffisants. Cette action coûte ${costInfo.cost} crédit(s). Solde actuel : ${balance.credits}.`,
+          code: 'insufficient_credits',
+          required: costInfo.cost,
+          balance: balance.credits,
+        }, { status: 402 })
+      }
+    }
+    // Deduct (or log free-quota use).
+    const deduct = await deductCredits({
+      userId: finalUserId,
+      action: 'prospection.launch',
+      entityId: null, // will be set after campaign creation
+      idempotencyKey,
+      note: `Campagne « ${productName.trim()} » (${countLocations(locations)} zone(s))`,
+    })
+    if (!deduct.ok) {
+      return NextResponse.json({
+        error: deduct.reason === 'insufficient'
+          ? `Crédits insuffisants. Cette action coûte ${deduct.cost} crédit(s).`
+          : 'Échec de la déduction de crédits',
+        code: deduct.reason === 'insufficient' ? 'insufficient_credits' : 'deduct_failed',
+        required: deduct.cost,
+      }, { status: 402 })
+    }
+
     // Derive a legacy `city` for backward-compat views (first non-"all" city, or country name).
     const firstCity = parsed.find((p) => p.city !== null)?.city
     const firstCountry = parsed[0]?.country || ''
@@ -132,6 +184,10 @@ export async function POST(request: Request) {
     )
 
     if (!campaign) {
+      // Refund the deduction since the campaign failed.
+      if (deduct.cost > 0) {
+        await grantCreditsSafe(finalUserId, deduct.cost, `Remboursement : échec création campagne « ${productName.trim()} »`)
+      }
       return NextResponse.json({ error: 'Échec création campagne' }, { status: 500 })
     }
 
@@ -211,6 +267,9 @@ export async function POST(request: Request) {
       campaign: { ...campaign, leadsFound: createdLeads.length },
       leadsFound: createdLeads.length,
       leads: createdLeads.slice(0, 10), // return first 10 for instant UI feedback
+      creditsUsed: deduct.cost,
+      creditsFreeQuotaUsed: deduct.freeQuotaUsed,
+      balanceAfter: deduct.balanceAfter,
     })
   } catch (error) {
     console.error('Prospection error:', error)

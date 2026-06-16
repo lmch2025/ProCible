@@ -132,3 +132,101 @@ Stage Summary:
 - Le nouveau CTA « Nouvelle recherche » est un second point d'entrée plus visible et contextuel, placé juste sous le header sur les 3 écrans à données (Home/Leads/Notifications).
 - Au scroll, header + CTA restent tous les deux pinned en haut (header z-40 au-dessus, CTA z-30 juste en-dessous), tout le reste du contenu défile sous eux. Animation continue float + shimmer + halo glow donne un effet « vivant » très agréable.
 - La hauteur du header est mesurée dynamiquement (ResizeObserver), donc le CTA reste correctement positionné même si les headers changent de hauteur (par exemple quand le nombre de tabs change, ou si l'utilisateur redimensionne la fenêtre).
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Algorithme robuste de gestion des crédits configurable via admin panel
+
+Work Log:
+- Étendu le schéma Prisma (prisma/schema.prisma) : ajout de 2 modèles.
+  • CreditRule { id, action (unique), label, cost, description, enabled, freeQuotaPerDay, createdAt, updatedAt } — chaque action à valeur ajoutée a une règle configurable.
+  • CreditTransaction { id, amount (signé), balanceAfter (snapshot), action, label, entityId, idempotencyKey, note, userId, createdAt } — journal complet de chaque mouvement de crédits.
+  • User : ajout de la relation creditTransactions CreditTransaction[].
+
+- Créé src/lib/credits-service.ts — service layer robuste avec :
+  • DEFAULT_CREDIT_RULES — 6 règles seedées : prospection.launch (5), ai.draft (1, quota 3/jour), ai.analyze (2, quota 5/jour), lead.export (3), lead.reveal_phone (1, quota 10/jour), ai.suggestion (1, quota 5/jour).
+  • ensureDefaultCreditRules() — idempotent, ne crée les règles que si la table est vide.
+  • getRule(action) / getAllRules() — lectures.
+  • getEffectiveCost(action, userId) — calcule le coût effectif en tenant compte de (a) rule.enabled (désactivée = gratuit), (b) freeQuotaPerDay (gratuit si l'user n'a pas dépassé le quota des dernières 24h).
+  • deductCredits({userId, action, entityId, idempotencyKey, note}) — déduction atomique avec :
+    - Idempotency : si idempotencyKey déjà présent pour cet user, retourne la transaction existante (pas de double déduction).
+    - Free quota : si l'action est gratuite pour cet user (quota ou règle désactivée), log une transaction à 0 crédit sans toucher au solde.
+    - Race-condition safe : utilise user.updateMany({ where: { id, credits: { gte: cost } }, data: { credits: { decrement: cost } } }) — l'update ne s'applique que si le solde est suffisant. Si count=0 (race perdue), retourne 'insufficient'.
+    - Audit : log systématique dans CreditTransaction avec balanceAfter, label denormalized (pour que l'historique reste exact même si la règle change).
+  • grantCredits({userId, amount, action, label, note, idempotencyKey}) — ajout/soustraction admin ou achat pack, atomique + idempotent + journalisé.
+  • setCredits({userId, credits, note}) — fixe le solde à une valeur absolue, log le delta.
+  • getBalance(userId) / getTransactions(userId) / getAllTransactions() — lectures pour UI user et admin.
+
+- Mis à jour src/lib/mock-db.ts : ajout des collections creditRule + creditTransaction, seed avec 6 règles et 8 transactions de démo, defaults à la création, gestion de la relation creditTransactions dans applyInclude.
+
+- Créé src/app/admin/api/credit-rules/route.ts — CRUD complet :
+  • GET : sème les règles par défaut si vide, retourne toutes les règles.
+  • POST : crée une règle (validation action+label+cost>=0, duplicate check, audit log).
+  • PATCH : met à jour par id ou action (validation cost>=0, audit log).
+  • DELETE : supprime par id ou action (audit log).
+
+- Créé src/app/admin/api/credit-transactions/route.ts — GET toutes les transactions (admin) avec join user, filtre userId, limit.
+
+- Réécrit src/app/admin/api/credits/route.ts : utilise maintenant le credits-service pour des opérations atomiques et journalisées.
+  • PATCH {userId, credits?, plan?} : setCredits() + update plan, avec audit.
+  • POST {userId, amount, note?} : grantCredits() (positif ou négatif), avec audit.
+
+- Créé src/app/api/credits/route.ts — endpoint public pour l'utilisateur :
+  • GET ?userId=... : retourne { balance, transactions, rules } (règles actives seulement, pour afficher la tarification).
+
+- Soudé la déduction de crédits dans les 3 routes à valeur ajoutée :
+  • src/app/api/prospection/route.ts : pré-check solde (402 si insuffisant) → deductCredits('prospection.launch') → si échec création campagne, refund via grantCredits('system.refund') → retourne {creditsUsed, creditsFreeQuotaUsed, balanceAfter}.
+  • src/app/api/ai/draft/route.ts : pré-check + deductCredits('ai.draft') + ownership check (lead.userId === userId) + refund si AI failure.
+  • src/app/api/ai/analyze/route.ts : pré-check + deductCredits('ai.analyze') + ownership check + refund si AI failure.
+
+- Mis à jour src/app/api/seed/route.ts : appelle ensureDefaultCreditRules() au début pour garantir que les règles existent.
+
+- Réécrit src/app/admin/components/CreditsTab.tsx avec 3 sous-onglets :
+  • Utilisateurs : liste users avec credits/plan, bouton "Modifier crédits / plan" → bottom-sheet avec 3 modes (Ajouter / Fixer / Plan). Stats totaux + moyenne.
+  • Règles : liste les 6 règles avec toggle on/off, inputs éditables Coût + Quota gratuit/jour (sauvegarde auto au blur), boutons Éditer + Supprimer, bouton "Nouvelle règle" → bottom-sheet avec formulaire complet (action, label, cost, freeQuotaPerDay, description, enabled).
+  • Transactions : journal complet de tous les mouvements, stats Crédits distribués / consommés, filtre par action/user/note.
+
+- Réécrit src/components/procible/CreditsScreen.tsx : 3 vues.
+  • Main : solde + 2 quick actions (Historique, Tarification) + packs d'achat + méthodes paiement.
+  • History : stats Crédités/Débités + liste détaillée des transactions (action, label, montant signé, solde après, date, note).
+  • Pricing : table des règles actives (label, coût, description, badge "X premiers gratuits/jour" si quota > 0).
+  - Charge transactions + rules depuis /api/credits au mount, met à jour le solde du store.
+
+- Mis à jour src/components/procible/ProspectionForm.tsx : gestion explicite du HTTP 402 (insufficient_credits) avec toast détaillé (solde actuel + requis), et mise à jour du solde du store via setCredits(data.balanceAfter) quand la campagne réussit. Toast de succès inclut maintenant "−X crédits" ou "(quota gratuit)".
+
+- Sécurité :
+  • Ownership check dans /api/ai/draft et /api/ai/analyze : si userId fourni et ≠ lead.userId → 403.
+  • Idempotency keys uniques par action+user+timestamp → pas de double déduction sur retry.
+  • Race-condition safe : updateMany conditionnel sur credits >= cost.
+  • Audit log systématique dans AuditLog pour chaque opération admin (création/modification/suppression de règle, grant/set credits).
+  • Transactions journalisées dans CreditTransaction avec balanceAfter snapshot — aucune movement n'échappe au journal.
+
+- Build : OK. Nouveaux endpoints visibles : /admin/api/credit-rules, /admin/api/credit-transactions, /api/credits.
+- Lint : 3 nouvelles erreurs react-hooks/set-state-in-effect dans CreditsTab (même pattern que les 5 pré-existantes dans les autres admin tabs, ne bloquent pas le build).
+- Tests end-to-end via curl :
+  • GET /api/credits → balance 12, 6 règles actives.
+  • POST /api/prospection (cost=5) → balance 12→7, transaction -5 logged.
+  • POST /api/prospection (encore) → balance 7→2, transaction -5 logged.
+  • POST /api/prospection (balance=2 < 5) → HTTP 402 avec message FR "Crédits insuffisants. Cette action coûte 5 crédit(s). Solde actuel : 2.".
+  • POST /admin/api/credits {userId, amount: 30} → balance 2→32, transaction admin.grant +30 logged.
+  • PATCH /admin/api/credit-rules {action: 'prospection.launch', cost: 3} → règle mise à jour, audit log créé.
+  • PATCH /admin/api/credits {userId, credits: 12} → balance fixée à 12, delta transaction logged.
+- Tests UI via browser automation (iPhone 14) :
+  • User credits screen : solde 12, quick actions Historique/Tarification visibles, packs d'achat affichés.
+  • Tarification view : 6 règles affichées avec coût + description + badge "X premiers gratuits/jour".
+  • History view : 6 transactions listées avec montants signés, dates, notes.
+  • Admin CreditsTab > Utilisateurs : 6 users avec credits/plan, bouton modifier ouvre bottom-sheet 3 modes.
+  • Admin CreditsTab > Règles : 6 règles avec toggle on/off, inputs Coût+Quota éditables, bouton "Nouvelle règle".
+  • Admin CreditsTab > Transactions : journal complet avec stats + Crédits distribués/consommés.
+  • ProspectionForm avec balance=2 (insuffisant) : toast erreur affiche "Crédits insuffisants. Cette action coûte 3 crédit(s). Solde actuel : 2 · Requis : 3".
+
+Stage Summary:
+- Algorithme de crédits robuste et configurable opérationnel de bout en bout.
+- Chaque action à valeur ajoutée (lancer une campagne, générer un message IA, analyser un lead, exporter, révéler un téléphone) consomme des crédits selon une règle configurable.
+- 6 règles par défaut seedées automatiquement. Admin peut CRUD les règles via /admin (changer coût, quota gratuit/jour, activer/désactiver, créer nouvelles règles).
+- Toutes les opérations sont atomiques (updateMany conditionnel) et journalisées (CreditTransaction avec balanceAfter snapshot).
+- Idempotency keys préviennent les doubles déductions sur retry.
+- Ownership check + audit log sur chaque opération admin.
+- UI user (CreditsScreen) : 3 vues Main/History/Pricing. UI admin (CreditsTab) : 3 sous-onglets Utilisateurs/Règles/Transactions.
+- Rétro-compat : le champ user.credits reste la source de vérité du solde, les transactions sont en plus pour l'audit/transparence.

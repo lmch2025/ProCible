@@ -22,6 +22,7 @@ model User {
   preferences  Preference?
   notifications Notification[]
   campaigns    ProspectionCampaign[]
+  creditTransactions CreditTransaction[]
 }
 
 model Lead {
@@ -131,4 +132,54 @@ model AuditLog {
   details     String?  // JSON string with change details
   ip          String?
   createdAt   DateTime @default(now())
+}
+
+/// A configurable credit rule — how many credits each value-add action costs.
+/// Admin can CRUD these rules via /admin/api/credit-rules.
+model CreditRule {
+  id              String   @id @default(cuid())
+  /// Stable action key, e.g. "prospection.launch", "ai.draft", "lead.export".
+  /// Used by the code to look up the cost; never changes after creation.
+  action          String   @unique
+  /// Human-readable label shown in admin UI and user-facing breakdowns.
+  label           String
+  /// Cost in credits. 0 = free. Negative = grants credits (rare; used for bonuses).
+  cost            Int      @default(1)
+  /// Longer description for admin tooltip.
+  description     String?
+  /// If false, the rule is inactive and the action is free.
+  enabled         Boolean  @default(true)
+  /// Free quota per day before credits are deducted. 0 = no free quota.
+  freeQuotaPerDay Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Every credit movement is recorded here for audit and user transparency.
+/// Both user-triggered (action cost) and admin-triggered (grant/set) ops.
+model CreditTransaction {
+  id             String   @id @default(cuid())
+  /// Positive = credit added, negative = credit deducted.
+  amount         Int
+  /// Balance after this transaction (snapshot for fast user-side display).
+  balanceAfter   Int
+  /// The action key from CreditRule, or a synthetic key for admin grants:
+  /// "admin.grant", "admin.set", "purchase.pack", "signup.bonus".
+  action         String
+  /// Human-readable label (denormalized from CreditRule.label at the time of
+  /// the transaction, so old transactions stay accurate even if the rule is
+  /// later edited).
+  label          String
+  /// Optional reference to the entity that triggered the transaction
+  /// (e.g. campaignId for prospection.launch, leadId for ai.draft).
+  entityId       String?
+  /// Optional idempotency token. If two requests arrive with the same token
+  /// within a short window, only the first one applies the credit movement.
+  idempotencyKey String?
+  /// Optional note (e.g. admin reason for granting credits).
+  note           String?
+  userId         String
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
