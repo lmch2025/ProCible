@@ -121,6 +121,22 @@ export const DEFAULT_CREDIT_RULES: Array<Omit<CreditRule, 'id'>> = [
     enabled: true,
     freeQuotaPerDay: 5,
   },
+  {
+    action: 'ai.follow_up_plan',
+    label: 'Plan de suivi hiérarchique IA par lead',
+    cost: 3,
+    description: 'Plan multi-étapes (J+1, J+3, J+7, J+14, J+30) avec scripts prêts à envoyer, conseils tactiques, et notifications intelligentes programmées automatiquement',
+    enabled: true,
+    freeQuotaPerDay: 1,
+  },
+  {
+    action: 'ai.campaign_interpret',
+    label: 'Interprétation IA de campagne (ciblage acheteurs vs concurrents)',
+    cost: 0,
+    description: 'Incluse gratuitement dans chaque lancement de campagne — l\'IA transforme la description en requête ciblée qui trouve les acheteurs, pas les concurrents',
+    enabled: true,
+    freeQuotaPerDay: 0,
+  },
 ]
 
 /**

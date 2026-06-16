@@ -226,9 +226,40 @@ export default function ProspectionForm() {
           store.setCredits(data.balanceAfter)
         }
         const freeNote = data.creditsFreeQuotaUsed ? ' (quota gratuit)' : ''
+
+        // Build a rich description from the AI interpretation if available.
+        // This surfaces the AI's value to the user immediately: which buyer
+        // segments were targeted, which competitor types were excluded.
+        let description: string | undefined
+        if (data.interpretation) {
+          const interp = data.interpretation
+          const targets = interp.targetSegments?.slice(0, 3).join(', ')
+          const exclusions = interp.exclusions?.slice(0, 2).join(', ')
+          const parts: string[] = []
+          if (targets) parts.push(`Cibles : ${targets}${interp.targetSegments.length > 3 ? '…' : ''}`)
+          if (exclusions) parts.push(`Exclus : ${exclusions}${interp.exclusions.length > 2 ? '…' : ''}`)
+          if (data.creditsUsed > 0) parts.push(`−${data.creditsUsed} crédits${freeNote}`)
+          description = parts.join(' · ')
+        } else if (data.creditsUsed > 0) {
+          description = `−${data.creditsUsed} crédits${freeNote}`
+        }
+
         toast.success(
-          `Campagne lancée ! ${leadsCount} client${leadsCount > 1 ? 's' : ''} trouvé${leadsCount > 1 ? 's' : ''} dans ${locationCount} zone${locationCount > 1 ? 's' : ''}.${data.creditsUsed > 0 ? ` −${data.creditsUsed} crédits${freeNote}.` : ''}`,
+          `Campagne lancée ! ${leadsCount} client${leadsCount > 1 ? 's' : ''} trouvé${leadsCount > 1 ? 's' : ''} dans ${locationCount} zone${locationCount > 1 ? 's' : ''}.`,
+          description ? { description, duration: 7000 } : undefined,
         )
+
+        // If interpretation was generated, show a second informational toast
+        // with the buyer persona so the user understands the targeting.
+        if (data.interpretation?.buyerPersona) {
+          setTimeout(() => {
+            toast.info('Ciblage IA appliqué', {
+              description: data.interpretation.buyerPersona,
+              duration: 6000,
+            })
+          }, 800)
+        }
+
         setProductName('')
         setSelected([])
         setCountryQuery('')

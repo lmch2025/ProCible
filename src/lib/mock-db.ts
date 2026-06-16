@@ -83,6 +83,8 @@ const CREDIT_RULES: AnyRecord[] = [
   { id: 'cr4', action: 'lead.export', label: 'Export CSV de leads', cost: 3, description: 'Export de la liste filtrée au format CSV', enabled: true, freeQuotaPerDay: 0, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
   { id: 'cr5', action: 'lead.reveal_phone', label: 'Révéler le téléphone d\'un lead', cost: 1, description: 'Débloque le n° de téléphone/WhatsApp d\'un lead', enabled: true, freeQuotaPerDay: 10, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
   { id: 'cr6', action: 'ai.suggestion', label: 'Suggestion IA de relance', cost: 1, description: 'Suggestion personnalisée pour relancer un lead', enabled: true, freeQuotaPerDay: 5, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+  { id: 'cr7', action: 'ai.follow_up_plan', label: 'Plan de suivi hiérarchique IA par lead', cost: 3, description: 'Plan multi-étapes (J+1, J+3, J+7, J+14, J+30) avec scripts prêts à envoyer, conseils tactiques, et notifications intelligentes programmées automatiquement', enabled: true, freeQuotaPerDay: 1, createdAt: daysAgo(2), updatedAt: daysAgo(1) },
+  { id: 'cr8', action: 'ai.campaign_interpret', label: 'Interprétation IA de campagne (ciblage acheteurs vs concurrents)', cost: 0, description: 'Incluse gratuitement dans chaque lancement de campagne — l\'IA transforme la description en requête ciblée qui trouve les acheteurs, pas les concurrents', enabled: true, freeQuotaPerDay: 0, createdAt: daysAgo(2), updatedAt: daysAgo(1) },
 ]
 
 const CREDIT_TRANSACTIONS: AnyRecord[] = [
