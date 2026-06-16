@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import { useProcibleStore, STAGE_ORDER, STAGE_CONFIG, type LeadStage } from '@/store/procible-store'
-import { Coins, ArrowRight, Moon, TrendingUp, AlertTriangle, RotateCcw, Trophy, Megaphone, MapPin } from 'lucide-react'
+import { Coins, ArrowRight, Moon, TrendingUp, AlertTriangle, RotateCcw, Trophy, Megaphone, MapPin, Plus } from 'lucide-react'
 import ProspectionCTA from './ProspectionCTA'
 
 export default function HomeScreen() {
@@ -32,10 +32,20 @@ export default function HomeScreen() {
             <p className="text-sm text-muted-foreground">Bonjour</p>
             <h1 className="text-2xl font-bold procible-gradient-text">ProCible</h1>
           </div>
-          <div className="flex items-center gap-2 bg-secondary rounded-full px-3 py-1.5">
-            <Coins className="w-4 h-4 text-[#FF7B54]" />
-            <span className="text-sm font-medium text-secondary-foreground">{credits} crédits</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigateTo('credits')}
+            aria-label="Acheter des crédits"
+            className="group flex items-center gap-2 bg-secondary hover:bg-secondary/70 rounded-full pl-2.5 pr-3 py-1.5 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7B54]/40"
+          >
+            <span className="relative flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] shadow-sm">
+              <Coins className="w-3.5 h-3.5 text-white" />
+              <span className="absolute -inset-1 rounded-full bg-[#FF7B54]/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity" />
+            </span>
+            <span className="text-sm font-semibold text-secondary-foreground tabular-nums">{credits}</span>
+            <span className="text-xs text-muted-foreground hidden xs:inline">crédits</span>
+            <Plus className="w-3.5 h-3.5 text-[#FF7B54] opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all" />
+          </button>
         </motion.div>
       </div>
 
