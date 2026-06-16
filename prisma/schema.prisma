@@ -99,7 +99,12 @@ model ProspectionCampaign {
   id          String   @id @default(cuid())
   productName String
   images      String   @default("") // comma-separated URLs
-  city        String
+  // Legacy single-city field kept for backward compat with existing rows.
+  city        String   @default("")
+  // New: comma-separated list of locations (e.g. "CM:Douala,CM:Yaounde,CI::all" or
+  // "CM:all" to target a whole country). The form writes here; city is mirrored
+  // from the first entry for backward-compatible admin views.
+  locations   String   @default("") // comma-separated "ISO2:CityName" entries, ":all" = whole country
   status      String   @default("active") // active, completed, paused
   leadsFound  Int      @default(0)
   userId      String

@@ -48,10 +48,10 @@ const CONTACTS: AnyRecord[] = [
 ]
 
 const CAMPAIGNS: AnyRecord[] = [
-  { id: 'cmp1', productName: 'Cosmétiques naturels', images: '', city: 'Douala', status: 'active', leadsFound: 24, userId: 'u1', createdAt: daysAgo(7), updatedAt: daysAgo(1) },
-  { id: 'cmp2', productName: 'Pièces auto', images: '', city: 'Yaoundé', status: 'active', leadsFound: 18, userId: 'u2', createdAt: daysAgo(10), updatedAt: daysAgo(2) },
-  { id: 'cmp3', productName: 'Mode femme', images: '', city: 'Bafoussam', status: 'paused', leadsFound: 12, userId: 'u5', createdAt: daysAgo(15), updatedAt: daysAgo(8) },
-  { id: 'cmp4', productName: 'Équipements bureau', images: '', city: 'Douala', status: 'completed', leadsFound: 35, userId: 'u4', createdAt: daysAgo(20), updatedAt: daysAgo(5) },
+  { id: 'cmp1', productName: 'Cosmétiques naturels', images: '', city: 'Douala', locations: 'CM:Douala,CM:Yaoundé', status: 'active', leadsFound: 24, userId: 'u1', createdAt: daysAgo(7), updatedAt: daysAgo(1) },
+  { id: 'cmp2', productName: 'Pièces auto', images: '', city: 'Yaoundé', locations: 'CM:Yaoundé,CM:Garoua,SN::all', status: 'active', leadsFound: 18, userId: 'u2', createdAt: daysAgo(10), updatedAt: daysAgo(2) },
+  { id: 'cmp3', productName: 'Mode femme', images: '', city: 'Bafoussam', locations: 'CM:Bafoussam,CI:Abidjan', status: 'paused', leadsFound: 12, userId: 'u5', createdAt: daysAgo(15), updatedAt: daysAgo(8) },
+  { id: 'cmp4', productName: 'Équipements bureau', images: '', city: 'Douala', locations: 'CM::all', status: 'completed', leadsFound: 35, userId: 'u4', createdAt: daysAgo(20), updatedAt: daysAgo(5) },
 ]
 
 const NOTIFICATIONS: AnyRecord[] = [
@@ -319,6 +319,15 @@ class ModelDelegate {
         if (data[k] === undefined) data[k] = v
       }
     }
+    // ProspectionCampaign: mirror legacy `city` from first location entry.
+    if (this.model === 'prospectionCampaign') {
+      if (data.locations === undefined) data.locations = ''
+      if (!data.city) {
+        const firstLoc = String(data.locations).split(',')[0] || ''
+        const [, city] = firstLoc.split(':')
+        data.city = city && city !== 'all' ? city : ''
+      }
+    }
     this.collection().push(data)
     if (args?.include) return applyInclude(data, args.include)
     if (args?.select) return applySelect(data, args.select)
@@ -339,6 +348,13 @@ class ModelDelegate {
         record[k] = (record[k] || 0) + v.increment
       } else {
         record[k] = v
+      }
+    }
+    if (this.model === 'prospectionCampaign') {
+      if (record.locations !== undefined && !record.city) {
+        const firstLoc = String(record.locations).split(',')[0] || ''
+        const [, city] = firstLoc.split(':')
+        record.city = city && city !== 'all' ? city : ''
       }
     }
     if (['user', 'lead', 'prospectionCampaign', 'preference', 'admin', 'appSettings'].includes(this.model)) {

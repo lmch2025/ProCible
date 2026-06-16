@@ -60,6 +60,7 @@ export interface ProspectionCampaign {
   productName: string
   images: string
   city: string
+  locations: string // comma-separated "ISO2:CityName" entries, "ISO2:all" = whole country
   status: 'active' | 'completed' | 'paused'
   leadsFound: number
   userId: string

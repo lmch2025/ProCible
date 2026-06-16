@@ -47,3 +47,28 @@ Stage Summary:
 - Production behavior on Vercel: dashboard renders with seeded demo data and shows a banner explaining how to wire up a real hosted DB (Postgres/Turso) for persistence.
 - Local dev behavior: unchanged — real Prisma + SQLite, real data, no banner.
 - No data migration required; no schema change; no env var change needed for the fix to land. To enable real persistence on Vercel later, set DATABASE_URL to a hosted Postgres/Turso connection string (the mock auto-disables when DATABASE_URL is no longer a file: URL).
+
+---
+Task ID: 4
+Agent: Main Agent
+Task: Permettre à l'utilisateur de saisir plusieurs villes pour une campagne + sélectionner tout un pays
+
+Work Log:
+- Étendu le schéma Prisma ProspectionCampaign : ajout du champ `locations String @default("")` (format CSV "ISO2:CityName" ou "ISO2:all" pour tout un pays). Le champ `city` legacy est conservé pour la rétro-compat des vues admin et peuplé automatiquement depuis la première ville.
+- Créé src/lib/locations.ts : liste hiérarchique de 13 pays (Cameroun, CI, SN, GA, CG, CD, TG, BJ, BF, ML, GN, FR, BE) avec drapeaux, indicatifs téléphoniques et 5–15 villes par pays. Fonctions utilitaires parseLocations(), formatLocations() (résumé humain lisible "🇨🇲 Douala, Yaoundé + 🇸🇳 tout le pays"), countLocations().
+- Mis à jour src/store/procible-store.ts : ProspectionCampaign interface étendue avec le champ `locations`.
+- Mis à jour src/lib/mock-db.ts : les 4 campagnes de démo ont maintenant des `locations` variés (multi-villes, tout pays). Le mock garantit que `city` est toujours dérivé de `locations` à la création et l'update.
+- Réécrit src/components/procible/ProspectionForm.tsx : nouveau sélecteur hiérarchique avec recherche, accordéon par pays, chips pour les sélections, bouton "Tout le pays" par pays, compteur de zones, total recall de l'UX (un seul pays pouvait être choisi avant ; maintenant plusieurs villes de plusieurs pays + "tout le pays" coexistent). Le bouton submit affiche le nombre de zones.
+- Créé src/app/api/prospection/route.ts : la route manquante ! Avant, le form postait vers /api/prospection qui n'existait pas. Maintenant la route : valide productName + locations, résout/crée un user démo, crée la ProspectionCampaign avec `locations` + `city` legacy, génère 3–8 leads par ville (4–8 par ville quand "tout le pays" sélectionné, sur 3 villes représentatives du pays), update leadsFound, log audit, envoie notification à l'utilisateur. Retourne campaign + 10 premiers leads pour feedback UI immédiat.
+- Mis à jour src/app/admin/components/CampaignsTab.tsx : la liste affiche maintenant le résumé locations (formatLocations) + badge "X zones" si >1, et la bottom sheet de détail affiche les chips de chaque zone (drapeau + ville ou "Tout le pays"). Rétro-compatible : si locations absent, affiche l'ancien champ city.
+- Mis à jour src/app/admin/api/export/route.ts : l'export CSV des campagnes inclut maintenant une colonne "Localisations" et une colonne "Ville (legacy)" séparée pour ne pas perdre d'info.
+- Lint : aucune nouvelle erreur introduite (5 erreurs pré-existantes dans AuditLogTab/ContactsTab/CampaignsTab/LeadsTab/UsersTab sont dues à un pattern useEffect/setState React 19 et ne sont pas liées à ce changement).
+- Build : OK, nouvelle route /api/prospection visible.
+- Tests locaux en mode Vercel : POST /api/prospection avec locations="CM:Douala,CM:Yaounde,SN::all,CI:Abidjan" a créé 27 leads répartis sur 4 villes (Douala 6, Yaounde 3, Abidjan 4) + 3 villes du Sénégal (Dakar 6, Thiès 7, Saint-Louis 4 = 17 leads pour "tout le pays"). Les 35 leads visibles côté admin sont bien groupés par ville. Export CSV inclut les localisations.
+
+Stage Summary:
+- L'utilisateur peut maintenant sélectionner plusieurs villes (potentiellement dans plusieurs pays) + "Tout le pays" pour n'importe quel pays disponible, le tout dans la même campagne. Les sélections apparaissent comme chips supprimables individuellement.
+- 13 pays disponibles (focus Afrique centrale/occidentale + France/Belgique pour la diaspora).
+- Backend : nouvelle route /api/prospection robuste avec fallback mock DB, génération de leads réalistes par zone, notifications automatiques.
+- Admin : vue liste + détail mises à jour pour exploiter le champ multi-zones ; export CSV mis à jour.
+- Rétro-compat : le champ `city` continue d'être peuplé pour ne pas casser les vues admin existantes.

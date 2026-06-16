@@ -4,7 +4,7 @@ import { db, withDbFallback } from '@/lib/db'
 const HEADERS: Record<string, string> = {
   users: 'ID,Nom,Telephone,Plan,Credits,Onboarded,Clients,Campagnes,Secteurs,Villes,Date Inscription\n',
   leads: 'ID,Nom,Entreprise,Secteur,Ville,Telephone,Source,Etape,Score,Contacts,Proprietaire,Date Creation\n',
-  campaigns: 'ID,Produit,Ville,Statut,Clients Trouves,Proprietaire,Date Creation\n',
+  campaigns: 'ID,Produit,Localisations,Ville (legacy),Statut,Clients Trouves,Proprietaire,Date Creation\n',
   notifications: 'ID,Type,Titre,Message,Lu,Utilisateur,Date\n',
 }
 
@@ -66,7 +66,8 @@ export async function GET(request: Request) {
         [],
       )
       campaigns.forEach(c => {
-        csv += `"${c.id}","${c.productName}","${c.city}","${c.status}",${c.leadsFound},"${c.user?.name || c.user?.phone || ''}","${new Date(c.createdAt).toLocaleDateString('fr-FR')}"\n`
+        const locs = c.locations || c.city || ''
+        csv += `"${c.id}","${c.productName}","${locs.replace(/"/g, '""')}","${(c.city || '').replace(/"/g, '""')}","${c.status}",${c.leadsFound},"${c.user?.name || c.user?.phone || ''}","${new Date(c.createdAt).toLocaleDateString('fr-FR')}"\n`
       })
     } else if (entity === 'notifications') {
       const notifs = await withDbFallback(
