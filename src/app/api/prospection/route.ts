@@ -135,46 +135,38 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Échec création campagne' }, { status: 500 })
     }
 
-    // Generate leads: ~5–15 per location entry. Skip per-city when "all country"
-    // is selected — generate more leads per country with random cities.
+    // Generate leads per location. For a specific city we tag leads with that city.
+    // For "whole country" we tag leads with the country's French name (since we
+    // don't have a curated city list for all 250 countries) and generate more.
     const createdLeads: any[] = []
     for (const loc of parsed) {
-      let citiesForThisLoc: { iso2: string; city: string }[] = []
-      if (loc.city === null) {
-        // Whole country — use up to 3 representative cities
-        const allCities = (await import('@/lib/locations')).COUNTRY_BY_ISO[loc.iso2]?.cities || []
-        const sample = allCities.slice(0, 3)
-        citiesForThisLoc = sample.map((c) => ({ iso2: loc.iso2, city: c }))
-        if (citiesForThisLoc.length === 0) citiesForThisLoc = [{ iso2: loc.iso2, city: loc.country }]
-      } else {
-        citiesForThisLoc = [{ iso2: loc.iso2, city: loc.city }]
-      }
+      const leadCount = loc.city === null
+        ? 6 + Math.floor(Math.random() * 6) // 6–11 leads for a whole country
+        : 3 + Math.floor(Math.random() * 5) // 3–7 leads for a specific city
+      const cityLabel = loc.city || loc.country
 
-      for (const { iso2, city } of citiesForThisLoc) {
-        const leadCount = loc.city === null ? 4 + Math.floor(Math.random() * 4) : 3 + Math.floor(Math.random() * 5)
-        for (let i = 0; i < leadCount; i++) {
-          const data = JSON.parse(leadNameFromLocation(iso2, city, i))
-          const lead = await withDbFallback(
-            (client) => client.lead.create({
-              data: {
-                name: data.name,
-                business: data.business,
-                sector: data.sector,
-                city: data.city,
-                phone: data.phone,
-                whatsapp: data.whatsapp,
-                source: data.source,
-                address: data.address,
-                stage: 'nouveau',
-                score: data.score,
-                notes: data.notes,
-                userId: finalUserId,
-              },
-            }),
-            null as any,
-          )
-          if (lead) createdLeads.push(lead)
-        }
+      for (let i = 0; i < leadCount; i++) {
+        const data = JSON.parse(leadNameFromLocation(loc.iso2, cityLabel, i))
+        const lead = await withDbFallback(
+          (client) => client.lead.create({
+            data: {
+              name: data.name,
+              business: data.business,
+              sector: data.sector,
+              city: data.city,
+              phone: data.phone,
+              whatsapp: data.whatsapp,
+              source: data.source,
+              address: data.address,
+              stage: 'nouveau',
+              score: data.score,
+              notes: data.notes,
+              userId: finalUserId,
+            },
+          }),
+          null as any,
+        )
+        if (lead) createdLeads.push(lead)
       }
     }
 

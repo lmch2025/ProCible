@@ -72,3 +72,35 @@ Stage Summary:
 - Backend : nouvelle route /api/prospection robuste avec fallback mock DB, génération de leads réalistes par zone, notifications automatiques.
 - Admin : vue liste + détail mises à jour pour exploiter le champ multi-zones ; export CSV mis à jour.
 - Rétro-compat : le champ `city` continue d'être peuplé pour ne pas casser les vues admin existantes.
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Remplacer la liste fixe de pays par une saisie prédictive couvrant TOUS les pays et villes mondiales
+
+Work Log:
+- Récupéré la liste des 250 pays via countriesnow.space API (REST Countries est déprécié). Généré src/lib/all-countries.ts avec iso2, name (EN), dialCode normalisé. Fonctions utilitaires iso2ToFlag() (emoji depuis ISO2 via regional indicators) et countryNameFR() (utilise Intl.DisplayNames(['fr'], { type: 'region' }) — built-in Node.js 14+ et tous les navigateurs modernes, fallback sur le nom anglais).
+- Réécrit src/lib/locations.ts pour utiliser all-countries comme source unique (suppression de la liste hardcodée à 13 pays). Re-exports ALL_COUNTRIES, COUNTRY_BY_ISO, iso2ToFlag, countryNameFR. parseLocations/formatLocations/countLocations inchangés en signature, mais supportent maintenant n'importe quel ISO2 mondial.
+- Créé src/app/api/cities/route.ts : proxy serveur pour l'API Nominatim d'OpenStreetMap (gratuite, sans clé). Pourquoi un proxy : (1) ajoute le User-Agent obligatoire selon la politique d'usage Nominatim, (2) évite les problèmes CORS côté navigateur, (3) cache en mémoire 24h pour respecter la limite de 1 req/sec, (4) normalise la réponse en JSON compact [{ name, country, countryName, state, county, lat, lon }]. Filtre les résultats pour ne garder que les types city/town/village/municipality/county/hamlet, déduplique par nom.
+- Réécrit src/components/procible/ProspectionForm.tsx avec deux champs autocomplete indépendants :
+  • Pays : filtre ALL_COUNTRIES par nom EN, nom FR (via Intl.DisplayNames) ou ISO2, dropdown avec drapeau + nom FR + nom EN si différent + indicatif téléphonique. Sélection au clavier (flèches + Entrée). Cliquer un pays l'ajoute comme "Tout le pays" et pré-sélectionne ce pays comme filtre pour la recherche de villes.
+  • Villes : requête /api/cities avec debounce 350ms + AbortController pour annuler les requêtes en vol. Fonctionne dans un pays spécifique (si sélectionné) ou dans le monde entier. Dropdown avec drapeau + nom + contexte (county, state, pays). Validation : minimum 2 caractères.
+  • Chips supprimables individuellement (drapeau + ville ou "Tout {Pays}").
+  • Bouton "Ajouter Tout {Pays}" qui apparaît quand un pays est actif mais pas encore ajouté comme "tout le pays".
+  • Compteur de zones dans le label.
+- Mis à jour /api/prospection/route.ts : suppression de la dépendance à COUNTRY_BY_ISO[iso2].cities (qui n'existe plus). Quand "tout le pays" est sélectionné, génère 6-11 leads taggés avec le nom FR du pays (au lieu d'essayer d'échantillonner des villes qu'on ne connaît pas pour les 250 pays). Quand une ville spécifique est sélectionnée, génère 3-7 leads taggés avec cette ville.
+- Lint : aucune nouvelle erreur (5 erreurs pré-existantes non liées).
+- Build : OK, nouvelle route /api/cities visible.
+- Tests locaux en mode Vercel :
+  • /api/cities?q=douala&country=cm → 2 résultats (Douala + Communauté urbaine de Douala, Wouri, Région du Littoral)
+  • /api/cities?q=paris → 2 résultats (Paris, France + Paris, Texas, USA) — recherche mondiale fonctionne
+  • /api/cities?q=marseille&country=fr → 1 résultat
+  • /api/cities?q=d → liste vide (validation < 2 chars fonctionne)
+  • POST /api/prospection avec locations="FR:Paris,JP::all" → 13 leads générés (Paris + Japon entier), campaign.locations="FR:Paris,JP::all", campaign.city="Paris" (legacy).
+
+Stage Summary:
+- L'utilisateur peut maintenant rechercher n'importe quel pays (250) et n'importe quelle ville mondiale via Nominatim/OpenStreetMap, sans limitation géographique.
+- UX : deux champs autocomplete indépendants (pays + ville) + chips multi-sélection + bouton "Tout le pays" + compteur de zones. Navigation clavier complète (flèches + Entrée + Escape).
+- Backend : nouveau proxy /api/cities avec cache 24h pour respecter la politique Nominatim. /api/prospection génère des leads pour n'importe quelle combinaison de pays/villes.
+- Aucune clé API requise (Nominatim est gratuit et open source).
+- Rétro-compat : les anciennes campagnes avec locations au format "ISO2:CityName" continuent de s'afficher correctement dans l'admin.

@@ -1,122 +1,25 @@
 /**
- * Hierarchical location list: country (ISO2 + name + flag) → cities.
+ * Hierarchical location support: country (any of the 250 worldwide ISO2 codes)
+ * → city (looked up live via Nominatim through /api/cities).
  *
- * Focused on Central/West Africa (the app's primary market) with a smaller
- * set of major cities per country. The form lets the user either pick
- * "Tout le pays" (whole country) or drill down and pick one or more cities
- * across multiple countries.
+ * Format used in the DB column `locations`: comma-separated entries
+ *   "ISO2:CityName"  → a specific city in that country
+ *   "ISO2:all"       → the whole country
  *
- * Format used in DB column `locations`: comma-separated entries
- * "ISO2:CityName" — example "CM:Douala,CM:Yaounde,SN::all"
- *   - The ":all" sentinel means "whole country".
- *   - Empty city after the colon is invalid (use ":all" instead).
+ * The country list is no longer hardcoded — we use src/lib/all-countries.ts
+ * which has all 250 world countries. French display names come from
+ * Intl.DisplayNames (built into Node.js 14+ and all modern browsers).
  */
+
+import { ALL_COUNTRIES, COUNTRY_BY_ISO, iso2ToFlag, countryNameFR } from './all-countries'
+
+export { ALL_COUNTRIES, COUNTRY_BY_ISO, iso2ToFlag, countryNameFR }
 
 export interface Country {
   iso2: string
   name: string
-  flag: string
   dialCode: string
-  cities: string[]
 }
-
-export const COUNTRIES: Country[] = [
-  {
-    iso2: 'CM',
-    name: 'Cameroun',
-    flag: '🇨🇲',
-    dialCode: '+237',
-    cities: ['Douala', 'Yaoundé', 'Bafoussam', 'Garoua', 'Bamenda', 'Maroua', 'Buea', 'Ebolowa', 'Kribi', 'Limbé', 'Ngaoundéré', 'Bertoua', 'Loum', 'Nkongsamba', 'Edéa'],
-  },
-  {
-    iso2: 'CI',
-    name: "Côte d'Ivoire",
-    flag: '🇨🇮',
-    dialCode: '+225',
-    cities: ['Abidjan', 'Bouaké', 'Yamoussoukro', 'Daloa', 'Korhogo', 'San-Pédro', 'Man', 'Divo', 'Gagnoa'],
-  },
-  {
-    iso2: 'SN',
-    name: 'Sénégal',
-    flag: '🇸🇳',
-    dialCode: '+221',
-    cities: ['Dakar', 'Thiès', 'Saint-Louis', 'Touba', 'Ziguinchor', 'Rufisque', 'Kaolack', 'Mbour'],
-  },
-  {
-    iso2: 'GA',
-    name: 'Gabon',
-    flag: '🇬🇦',
-    dialCode: '+241',
-    cities: ['Libreville', 'Port-Gentil', 'Franceville', 'Oyem', 'Moanda'],
-  },
-  {
-    iso2: 'CG',
-    name: 'Congo',
-    flag: '🇨🇬',
-    dialCode: '+242',
-    cities: ['Brazzaville', 'Pointe-Noire', 'Dolisie', 'Nkayi', 'Owando'],
-  },
-  {
-    iso2: 'CD',
-    name: 'RD Congo',
-    flag: '🇨🇩',
-    dialCode: '+243',
-    cities: ['Kinshasa', 'Lubumbashi', 'Goma', 'Mbuji-Mayi', 'Bukavu', 'Kananga', 'Kisangani'],
-  },
-  {
-    iso2: 'TG',
-    name: 'Togo',
-    flag: '🇹🇬',
-    dialCode: '+228',
-    cities: ['Lomé', 'Sokodé', 'Kara', 'Atakpamé', 'Dapaong'],
-  },
-  {
-    iso2: 'BJ',
-    name: 'Bénin',
-    flag: '🇧🇯',
-    dialCode: '+229',
-    cities: ['Cotonou', 'Porto-Novo', 'Parakou', 'Abomey', 'Natitingou'],
-  },
-  {
-    iso2: 'BF',
-    name: 'Burkina Faso',
-    flag: '🇧🇫',
-    dialCode: '+226',
-    cities: ['Ouagadougou', 'Bobo-Dioulasso', 'Koudougou', 'Banfora', 'Ouahigouya'],
-  },
-  {
-    iso2: 'ML',
-    name: 'Mali',
-    flag: '🇲🇱',
-    dialCode: '+223',
-    cities: ['Bamako', 'Sikasso', 'Ségou', 'Mopti', 'Kayes'],
-  },
-  {
-    iso2: 'GN',
-    name: 'Guinée',
-    flag: '🇬🇳',
-    dialCode: '+224',
-    cities: ['Conakry', 'Nzérékoré', 'Kankan', 'Kindia', 'Labé'],
-  },
-  {
-    iso2: 'FR',
-    name: 'France',
-    flag: '🇫🇷',
-    dialCode: '+33',
-    cities: ['Paris', 'Marseille', 'Lyon', 'Toulouse', 'Bordeaux', 'Lille', 'Nantes', 'Nice'],
-  },
-  {
-    iso2: 'BE',
-    name: 'Belgique',
-    flag: '🇧🇪',
-    dialCode: '+32',
-    cities: ['Bruxelles', 'Anvers', 'Gand', 'Liège', 'Charleroi'],
-  },
-]
-
-export const COUNTRY_BY_ISO: Record<string, Country> = Object.fromEntries(
-  COUNTRIES.map((c) => [c.iso2, c]),
-)
 
 /** Parse "ISO2:City" entries (or "ISO2:all") into structured objects. */
 export interface ParsedLocation {
@@ -138,13 +41,19 @@ export function parseLocations(locations: string): ParsedLocation[] {
     const country = COUNTRY_BY_ISO[iso2]
     if (!country) {
       // Unknown country code — still surface it so admins can see it.
-      out.push({ iso2, country: iso2, flag: '', city: city === 'all' ? null : city || null, raw })
+      out.push({
+        iso2,
+        country: countryNameFR(iso2, iso2),
+        flag: iso2ToFlag(iso2),
+        city: city === 'all' ? null : city || null,
+        raw,
+      })
       continue
     }
     out.push({
       iso2,
-      country: country.name,
-      flag: country.flag,
+      country: countryNameFR(iso2, country.name),
+      flag: iso2ToFlag(iso2),
       city: city === 'all' ? null : city || null,
       raw,
     })

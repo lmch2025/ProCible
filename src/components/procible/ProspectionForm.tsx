@@ -2,10 +2,16 @@
 
 import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore } from '@/store/procible-store'
-import { X, Image as ImageIcon, MapPin, Send, Loader2, Plus, ChevronDown, ChevronRight, Globe2, Check, Trash2 } from 'lucide-react'
-import { useState, useRef, useMemo } from 'react'
+import { X, Image as ImageIcon, MapPin, Send, Loader2, Plus, Check, Globe2, Search, AlertCircle } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
-import { COUNTRIES, parseLocations, countLocations } from '@/lib/locations'
+import {
+  ALL_COUNTRIES,
+  iso2ToFlag,
+  countryNameFR,
+  parseLocations,
+  countLocations,
+} from '@/lib/locations'
 
 interface SelectedEntry {
   raw: string // "ISO2:CityName" or "ISO2:all"
@@ -13,60 +19,149 @@ interface SelectedEntry {
   city: string | null
 }
 
+interface CitySuggestion {
+  name: string
+  country: string // ISO2 lowercase
+  state?: string
+  county?: string
+}
+
 export default function ProspectionForm() {
   const { showProspectionForm, setShowProspectionForm, addCampaign, prospectionSubmitting, setProspectionSubmitting } = useProcibleStore()
+
   const [productName, setProductName] = useState('')
   const [selected, setSelected] = useState<SelectedEntry[]>([])
-  const [expandedCountry, setExpandedCountry] = useState<string | null>('CM')
-  const [countrySearch, setCountrySearch] = useState('')
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const filteredCountries = useMemo(() => {
-    if (!countrySearch) return COUNTRIES
-    const q = countrySearch.toLowerCase()
-    return COUNTRIES.filter(
-      (c) => c.name.toLowerCase().includes(q) || c.iso2.toLowerCase().includes(q) || c.cities.some((city) => city.toLowerCase().includes(q)),
-    )
-  }, [countrySearch])
+  // --- Country autocomplete state ---
+  const [countryQuery, setCountryQuery] = useState('')
+  const [showCountryDropdown, setShowCountryDropdown] = useState(false)
+  const [highlightedCountry, setHighlightedCountry] = useState(-1)
+  const countryInputRef = useRef<HTMLInputElement>(null)
 
+  // --- City autocomplete state ---
+  const [cityQuery, setCityQuery] = useState('')
+  const [activeCountry, setActiveCountry] = useState<string>('') // ISO2, defaults to empty (= worldwide)
+  const [showCityDropdown, setShowCityDropdown] = useState(false)
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([])
+  const [cityLoading, setCityLoading] = useState(false)
+  const [highlightedCity, setHighlightedCity] = useState(-1)
+  const cityInputRef = useRef<HTMLInputElement>(null)
+  const cityAbortRef = useRef<AbortController | null>(null)
+  const cityDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ---- Filtering ----
+  const filteredCountries = useMemo(() => {
+    const q = countryQuery.trim().toLowerCase()
+    if (!q) return ALL_COUNTRIES.slice(0, 50)
+    return ALL_COUNTRIES.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.iso2.toLowerCase() === q ||
+        countryNameFR(c.iso2, c.name).toLowerCase().includes(q),
+    ).slice(0, 50)
+  }, [countryQuery])
+
+  // ---- Selection helpers ----
   const isSelected = (iso2: string, city: string | null) =>
     selected.some((s) => s.iso2 === iso2 && s.city === city)
 
-  const toggleCity = (iso2: string, city: string) => {
-    if (isSelected(iso2, city)) {
-      setSelected((prev) => prev.filter((s) => !(s.iso2 === iso2 && s.city === city)))
-    } else {
-      // Adding a city unselects the "all country" entry (if any) for the same country.
-      setSelected((prev) => [...prev.filter((s) => !(s.iso2 === iso2 && s.city === null)), { raw: `${iso2}:${city}`, iso2, city }])
-    }
+  const addCitySelection = (iso2: string, city: string) => {
+    if (isSelected(iso2, city)) return
+    // If "whole country" was already selected for this country, keep it AND
+    // add the specific city — the parser handles duplicates gracefully and
+    // the user might want both. (Per LOCATIONS format, both can coexist.)
+    setSelected((prev) => [...prev, { raw: `${iso2}:${city}`, iso2, city }])
   }
 
-  const toggleCountry = (iso2: string) => {
-    if (isSelected(iso2, null)) {
-      setSelected((prev) => prev.filter((s) => !(s.iso2 === iso2 && s.city === null)))
-    } else {
-      // Selecting "all country" removes individual city selections for that country.
-      setSelected((prev) => [...prev.filter((s) => s.iso2 !== iso2), { raw: `${iso2}:all`, iso2, city: null }])
-    }
+  const addWholeCountrySelection = (iso2: string) => {
+    if (isSelected(iso2, null)) return
+    setSelected((prev) => [...prev, { raw: `${iso2}:all`, iso2, city: null }])
   }
 
-  const removeSelected = (raw: string) => setSelected((prev) => prev.filter((s) => s.raw !== raw))
+  const removeSelected = (raw: string) =>
+    setSelected((prev) => prev.filter((s) => s.raw !== raw))
 
+  // ---- City search (debounced, hits /api/cities which proxies Nominatim) ----
+  const searchCities = useCallback(async (q: string, countryIso: string) => {
+    if (cityAbortRef.current) cityAbortRef.current.abort()
+    const ctrl = new AbortController()
+    cityAbortRef.current = ctrl
+    try {
+      const params = new URLSearchParams({ q, limit: '8' })
+      if (countryIso) params.set('country', countryIso)
+      const res = await fetch(`/api/cities?${params.toString()}`, { signal: ctrl.signal })
+      if (!res.ok) {
+        setCitySuggestions([])
+        return
+      }
+      const data = await res.json()
+      const sugg: CitySuggestion[] = (data.suggestions || []).map((s: any) => ({
+        name: s.name,
+        country: (s.country || '').toUpperCase(),
+        state: s.state,
+        county: s.county,
+      }))
+      setCitySuggestions(sugg)
+      setHighlightedCity(-1)
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        setCitySuggestions([])
+      }
+    } finally {
+      setCityLoading(false)
+    }
+  }, [])
+
+  const onCityQueryChange = (val: string) => {
+    setCityQuery(val)
+    setShowCityDropdown(true)
+    if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current)
+    if (val.trim().length < 2) {
+      setCitySuggestions([])
+      setCityLoading(false)
+      return
+    }
+    setCityLoading(true)
+    cityDebounceRef.current = setTimeout(() => {
+      searchCities(val.trim(), activeCountry)
+    }, 350)
+  }
+
+  const pickCity = (s: CitySuggestion) => {
+    addCitySelection(s.country, s.name)
+    setCityQuery('')
+    setCitySuggestions([])
+    setShowCityDropdown(false)
+    setCityLoading(false)
+    cityInputRef.current?.focus()
+  }
+
+  const pickCountryFromAutocomplete = (iso2: string) => {
+    addWholeCountrySelection(iso2)
+    setCountryQuery('')
+    setShowCountryDropdown(false)
+    setActiveCountry(iso2) // pre-select it as filter for city search
+    // Focus city input next
+    setTimeout(() => cityInputRef.current?.focus(), 50)
+  }
+
+  // ---- Submit ----
   const locationsString = useMemo(() => selected.map((s) => s.raw).join(','), [selected])
   const locationCount = selected.length
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
-    Array.from(files).slice(0, 3).forEach(file => {
+    Array.from(files).slice(0, 3).forEach((file) => {
       const reader = new FileReader()
-      reader.onload = () => setImages(prev => [...prev, reader.result as string])
+      reader.onload = () => setImages((prev) => [...prev, reader.result as string])
       reader.readAsDataURL(file)
     })
   }
 
-  const removeImage = (idx: number) => setImages(prev => prev.filter((_, i) => i !== idx))
+  const removeImage = (idx: number) => setImages((prev) => prev.filter((_, i) => i !== idx))
 
   const handleSubmit = async () => {
     if (!productName.trim()) {
@@ -92,15 +187,16 @@ export default function ProspectionForm() {
 
       if (res.ok) {
         const data = await res.json()
-        if (data.campaign) {
-          addCampaign(data.campaign)
-        }
+        if (data.campaign) addCampaign(data.campaign)
         const leadsCount = data.leadsFound ?? 0
-        toast.success(`Campagne lancée ! ${leadsCount} client${leadsCount > 1 ? 's' : ''} trouvé${leadsCount > 1 ? 's' : ''} dans ${locationCount} zone${locationCount > 1 ? 's' : ''}.`)
-        // Reset
+        toast.success(
+          `Campagne lancée ! ${leadsCount} client${leadsCount > 1 ? 's' : ''} trouvé${leadsCount > 1 ? 's' : ''} dans ${locationCount} zone${locationCount > 1 ? 's' : ''}.`,
+        )
         setProductName('')
         setSelected([])
-        setCountrySearch('')
+        setCountryQuery('')
+        setCityQuery('')
+        setActiveCountry('')
         setImages([])
         setShowProspectionForm(false)
       } else {
@@ -113,7 +209,15 @@ export default function ProspectionForm() {
     setProspectionSubmitting(false)
   }
 
-  const countryOf = (iso2: string) => COUNTRIES.find((c) => c.iso2 === iso2)
+  // Cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (cityDebounceRef.current) clearTimeout(cityDebounceRef.current)
+      if (cityAbortRef.current) cityAbortRef.current.abort()
+    }
+  }, [])
+
+  const selectedCountryObj = activeCountry ? ALL_COUNTRIES.find((c) => c.iso2 === activeCountry) : null
 
   return (
     <AnimatePresence>
@@ -156,15 +260,15 @@ export default function ProspectionForm() {
                 <input
                   type="text"
                   value={productName}
-                  onChange={e => setProductName(e.target.value)}
+                  onChange={(e) => setProductName(e.target.value)}
                   placeholder="Ex : Restaurant Le Palmier"
                   className="w-full px-4 py-3 rounded-xl bg-secondary border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
                 />
               </div>
 
-              {/* Location selector */}
+              {/* Zones cibles */}
               <div>
-                <label className="text-sm font-medium mb-2 block flex items-center gap-2">
+                <label className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Globe2 className="w-4 h-4 text-[#FF7B54]" />
                   Zones cibles
                   {locationCount > 0 && (
@@ -177,114 +281,182 @@ export default function ProspectionForm() {
                 {/* Selected chips */}
                 {selected.length > 0 && (
                   <div className="flex flex-wrap gap-2 mb-3">
-                    {selected.map((s) => {
-                      const country = countryOf(s.iso2)
-                      return (
-                        <div
-                          key={s.raw}
-                          className="inline-flex items-center gap-1.5 bg-[#FF7B54]/10 text-[#FF7B54] text-xs font-medium px-2.5 py-1.5 rounded-full"
-                        >
-                          <span>{country?.flag}</span>
-                          <span>{s.city || `Tout ${country?.name || s.iso2}`}</span>
-                          <button onClick={() => removeSelected(s.raw)} className="ml-0.5">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      )
-                    })}
+                    {selected.map((s) => (
+                      <div
+                        key={s.raw}
+                        className="inline-flex items-center gap-1.5 bg-[#FF7B54]/10 text-[#FF7B54] text-xs font-medium px-2.5 py-1.5 rounded-full"
+                      >
+                        <span>{iso2ToFlag(s.iso2)}</span>
+                        <span>{s.city || `Tout ${countryNameFR(s.iso2)}`}</span>
+                        <button onClick={() => removeSelected(s.raw)} className="ml-0.5">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {/* Country search */}
+                {/* Country autocomplete */}
                 <div className="relative mb-2">
-                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <input
+                    ref={countryInputRef}
                     type="text"
-                    value={countrySearch}
-                    onChange={e => setCountrySearch(e.target.value)}
-                    placeholder="Rechercher un pays ou une ville..."
-                    className="w-full pl-10 pr-4 py-3 rounded-xl bg-secondary border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
+                    value={countryQuery}
+                    onChange={(e) => {
+                      setCountryQuery(e.target.value)
+                      setShowCountryDropdown(true)
+                      setHighlightedCountry(-1)
+                    }}
+                    onFocus={() => setShowCountryDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCountryDropdown(false), 150)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setHighlightedCountry((h) => Math.min(h + 1, filteredCountries.length - 1))
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setHighlightedCountry((h) => Math.max(h - 1, 0))
+                      } else if (e.key === 'Enter' && highlightedCountry >= 0) {
+                        e.preventDefault()
+                        const c = filteredCountries[highlightedCountry]
+                        if (c) pickCountryFromAutocomplete(c.iso2)
+                      } else if (e.key === 'Escape') {
+                        setShowCountryDropdown(false)
+                      }
+                    }}
+                    placeholder="Ajouter un pays (entier)..."
+                    className="w-full pl-10 pr-24 py-3 rounded-xl bg-secondary border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
                   />
-                </div>
-
-                {/* Country list */}
-                <div className="bg-card rounded-xl border border-border/50 max-h-72 overflow-y-auto">
-                  {filteredCountries.length === 0 && (
-                    <div className="p-4 text-sm text-muted-foreground text-center">Aucun résultat</div>
+                  {selectedCountryObj && (
+                    <button
+                      onClick={() => {
+                        setActiveCountry('')
+                        countryInputRef.current?.focus()
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-[#FF7B54]/10 text-[#FF7B54] text-[11px] font-medium px-2 py-1 rounded-full"
+                      title="Pays filtrant la recherche de villes"
+                    >
+                      <span>{iso2ToFlag(selectedCountryObj.iso2)}</span>
+                      <span className="max-w-[80px] truncate">{countryNameFR(selectedCountryObj.iso2)}</span>
+                      <X className="w-3 h-3" />
+                    </button>
                   )}
-                  {filteredCountries.map((country) => {
-                    const isExpanded = expandedCountry === country.iso2
-                    const isAllSelected = isSelected(country.iso2, null)
-                    const selectedCitiesInCountry = selected.filter((s) => s.iso2 === country.iso2 && s.city !== null)
-                    return (
-                      <div key={country.iso2} className="border-b border-border/30 last:border-b-0">
-                        {/* Country header */}
-                        <div className="flex items-center">
+                  {showCountryDropdown && filteredCountries.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card rounded-xl shadow-lg border border-border/50 max-h-60 overflow-y-auto z-20">
+                      {filteredCountries.map((c, idx) => {
+                        const fr = countryNameFR(c.iso2, c.name)
+                        const alreadySelected = isSelected(c.iso2, null)
+                        return (
                           <button
-                            onClick={() => setExpandedCountry(isExpanded ? null : country.iso2)}
-                            className="flex-1 px-3 py-3 flex items-center gap-2 text-left hover:bg-secondary/50"
-                          >
-                            {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                            <span className="text-lg">{country.flag}</span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{country.name}</p>
-                              <p className="text-[10px] text-muted-foreground">
-                                {selectedCitiesInCountry.length > 0
-                                  ? `${selectedCitiesInCountry.length} ville${selectedCitiesInCountry.length > 1 ? 's' : ''} sélectionnée${selectedCitiesInCountry.length > 1 ? 's' : ''}`
-                                  : `${country.cities.length} villes`}
-                              </p>
-                            </div>
-                          </button>
-                          {/* Select whole country */}
-                          <button
-                            onClick={() => toggleCountry(country.iso2)}
-                            className={`px-3 py-1.5 mr-2 rounded-full text-[10px] font-semibold transition-colors ${
-                              isAllSelected
-                                ? 'bg-[#FF7B54] text-white'
-                                : 'bg-[#FF7B54]/10 text-[#FF7B54] hover:bg-[#FF7B54]/20'
+                            key={c.iso2}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => pickCountryFromAutocomplete(c.iso2)}
+                            onMouseEnter={() => setHighlightedCountry(idx)}
+                            className={`w-full px-3 py-2.5 text-left text-sm hover:bg-secondary flex items-center gap-2.5 ${
+                              idx === highlightedCountry ? 'bg-secondary' : ''
                             }`}
                           >
-                            {isAllSelected ? '✓ Tout' : 'Tout le pays'}
+                            <span className="text-lg">{iso2ToFlag(c.iso2)}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{fr}</p>
+                              {fr.toLowerCase() !== c.name.toLowerCase() && (
+                                <p className="text-[10px] text-muted-foreground truncate">{c.name}</p>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-muted-foreground">{c.dialCode}</span>
+                            {alreadySelected && <Check className="w-3.5 h-3.5 text-[#FF7B54]" />}
                           </button>
-                        </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
 
-                        {/* Cities */}
-                        <AnimatePresence>
-                          {isExpanded && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="px-3 pb-3 grid grid-cols-2 gap-1.5">
-                                {country.cities.map((city) => {
-                                  const sel = isSelected(country.iso2, city)
-                                  return (
-                                    <button
-                                      key={city}
-                                      onClick={() => toggleCity(country.iso2, city)}
-                                      className={`px-2.5 py-2 rounded-lg text-xs text-left flex items-center gap-1.5 transition-colors ${
-                                        sel
-                                          ? 'bg-[#FF7B54] text-white font-medium'
-                                          : 'bg-secondary/60 hover:bg-secondary'
-                                      }`}
-                                    >
-                                      {sel ? <Check className="w-3 h-3 shrink-0" /> : <Plus className="w-3 h-3 shrink-0 opacity-50" />}
-                                      <span className="truncate">{city}</span>
-                                    </button>
-                                  )
-                                })}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    )
-                  })}
+                {/* Quick "Tout le pays" toggle for the active country */}
+                {selectedCountryObj && !isSelected(selectedCountryObj.iso2, null) && (
+                  <button
+                    onClick={() => addWholeCountrySelection(selectedCountryObj.iso2)}
+                    className="text-[11px] text-[#FF7B54] font-medium mb-2 inline-flex items-center gap-1 hover:underline"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Ajouter « Tout {countryNameFR(selectedCountryObj.iso2)} »
+                  </button>
+                )}
+
+                {/* City autocomplete */}
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    ref={cityInputRef}
+                    type="text"
+                    value={cityQuery}
+                    onChange={(e) => onCityQueryChange(e.target.value)}
+                    onFocus={() => cityQuery.length >= 2 && setShowCityDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCityDropdown(false), 150)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setHighlightedCity((h) => Math.min(h + 1, citySuggestions.length - 1))
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setHighlightedCity((h) => Math.max(h - 1, 0))
+                      } else if (e.key === 'Enter' && highlightedCity >= 0) {
+                        e.preventDefault()
+                        const s = citySuggestions[highlightedCity]
+                        if (s) pickCity(s)
+                      } else if (e.key === 'Escape') {
+                        setShowCityDropdown(false)
+                      }
+                    }}
+                    placeholder={
+                      selectedCountryObj
+                        ? `Ville dans ${countryNameFR(selectedCountryObj.iso2)}...`
+                        : 'Ville (n\'importe quel pays)...'
+                    }
+                    className="w-full pl-10 pr-10 py-3 rounded-xl bg-secondary border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
+                  />
+                  {cityLoading && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                  )}
+                  {showCityDropdown && citySuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card rounded-xl shadow-lg border border-border/50 max-h-60 overflow-y-auto z-20">
+                      {citySuggestions.map((s, idx) => {
+                        const already = isSelected(s.country, s.name)
+                        return (
+                          <button
+                            key={`${s.country}-${s.name}-${idx}`}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => pickCity(s)}
+                            onMouseEnter={() => setHighlightedCity(idx)}
+                            className={`w-full px-3 py-2.5 text-left text-sm hover:bg-secondary flex items-center gap-2.5 ${
+                              idx === highlightedCity ? 'bg-secondary' : ''
+                            }`}
+                          >
+                            <span className="text-base">{iso2ToFlag(s.country)}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{s.name}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">
+                                {[s.county, s.state, countryNameFR(s.country)].filter(Boolean).join(', ')}
+                              </p>
+                            </div>
+                            {already && <Check className="w-3.5 h-3.5 text-[#FF7B54]" />}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {showCityDropdown && !cityLoading && cityQuery.trim().length >= 2 && citySuggestions.length === 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card rounded-xl shadow-lg border border-border/50 p-3 text-xs text-muted-foreground flex items-start gap-2 z-20">
+                      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                      <span>
+                        Aucune ville trouvée pour « {cityQuery.trim()} »{selectedCountryObj ? ` en ${countryNameFR(selectedCountryObj.iso2)}` : ''}. Essayez un autre nom.
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Sélectionnez une ou plusieurs villes, ou « Tout le pays » pour couvrir tout le territoire.
+                  Tapez au moins 2 lettres pour rechercher une ville. Vous pouvez mélanger plusieurs pays et villes.
                 </p>
               </div>
 
@@ -344,7 +516,10 @@ export default function ProspectionForm() {
               </button>
 
               <p className="text-xs text-center text-muted-foreground">
-                ProCible analysera votre produit et cherchera des clients qualifiés dans {locationCount > 0 ? `${locationCount} zone${locationCount > 1 ? 's' : ''}` : 'les zones sélectionnées'}
+                ProCible analysera votre produit et cherchera des clients qualifiés dans{' '}
+                {locationCount > 0
+                  ? `${locationCount} zone${locationCount > 1 ? 's' : ''}`
+                  : 'les zones sélectionnées'}
               </p>
             </div>
           </motion.div>
