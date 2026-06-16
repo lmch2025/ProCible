@@ -134,7 +134,7 @@ export default function BottomNav() {
             <button
               key={screen}
               onClick={() => navigateTo(screen)}
-              aria-label={showLowCreditPulse ? `Profil — crédits faibles : ${credits}` : label}
+              aria-label={showLowCreditPulse ? `Profil — ${credits} crédit${credits > 1 ? 's' : ''} restant${credits > 1 ? 's' : ''}` : label}
               className="relative flex flex-col items-center gap-1 py-2 px-3 min-w-[60px] transition-colors"
             >
               <div className="relative">
@@ -161,15 +161,17 @@ export default function BottomNav() {
                     <span className="text-[10px] text-white font-bold">{unreadCount}</span>
                   </motion.span>
                 )}
-                {/* Low-credit badge on profile tab */}
+                {/* Low-credit badge on profile tab — shows exact remaining balance */}
                 {showLowCreditPulse && (
                   <motion.span
                     aria-hidden
-                    className="absolute -top-1.5 -right-1.5 flex items-center justify-center w-4 h-4 rounded-full bg-[#EF4444] border-2 border-white"
+                    className={`absolute -top-1.5 -right-1.5 flex items-center justify-center rounded-full bg-[#EF4444] border-2 border-white font-bold text-white leading-none ${
+                      credits >= 10 ? 'w-5 h-4 px-1 text-[9px]' : 'w-4 h-4 text-[10px]'
+                    }`}
                     animate={{ scale: [1, 1.25, 1] }}
                     transition={{ duration: 1, repeat: Infinity, ease: 'easeInOut' }}
                   >
-                    <span className="text-[9px] font-bold text-white leading-none">!</span>
+                    {credits}
                   </motion.span>
                 )}
                 {active && (
