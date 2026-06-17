@@ -14,6 +14,7 @@ import CreditsScreen from '@/components/procible/CreditsScreen'
 import BottomNav from '@/components/procible/BottomNav'
 import ProspectionForm from '@/components/procible/ProspectionForm'
 import { SkeletonCard } from '@/components/procible/SkeletonLoaders'
+import { useI18n } from '@/lib/i18n'
 
 const screenComponents: Record<string, React.ComponentType> = {
   onboarding: Onboarding,
@@ -28,6 +29,7 @@ const screenComponents: Record<string, React.ComponentType> = {
 
 export default function Home() {
   const { currentScreen, isOnboarded, setLeads, setNotifications, setNewLeadsCount } = useProcibleStore()
+  const { locale } = useI18n()
   const [loading, setLocalLoading] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -36,12 +38,15 @@ export default function Home() {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'instant' })
   }, [currentScreen])
 
+  // Reload data when locale changes so server-stored notification titles/messages
+  // get re-fetched in the new language.
   useEffect(() => {
     async function seedAndLoad() {
       try {
-        const seedRes = await fetch('/api/seed', { method: 'POST' })
+        const headers = { 'x-locale': locale }
+        const seedRes = await fetch('/api/seed', { method: 'POST', headers })
         if (seedRes.ok) {
-          const leadsRes = await fetch('/api/leads')
+          const leadsRes = await fetch('/api/leads', { headers })
           if (leadsRes.ok) {
             const leadsData: Lead[] = await leadsRes.json()
             setLeads(leadsData)
@@ -49,7 +54,7 @@ export default function Home() {
             setNewLeadsCount(newCount)
           }
 
-          const notifRes = await fetch('/api/notifications')
+          const notifRes = await fetch('/api/notifications', { headers })
           if (notifRes.ok) {
             const notifData: AppNotification[] = await notifRes.json()
             setNotifications(notifData)
@@ -73,7 +78,7 @@ export default function Home() {
       setLocalLoading(false)
     }
     seedAndLoad()
-  }, [setLeads, setNotifications, setNewLeadsCount])
+  }, [setLeads, setNotifications, setNewLeadsCount, locale])
 
   if (loading) {
     return (

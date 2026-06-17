@@ -11,6 +11,7 @@ import {
   Badge, BottomSheet, DetailRow, STAGE_COLORS, STAGE_LABELS,
   SectionHeader,
 } from './SharedComponents'
+import { useI18n } from '@/lib/i18n'
 
 /* ---------- Types ---------- */
 
@@ -91,6 +92,7 @@ function modelBadgeColor(modelId: string): string {
 /* ---------- Component ---------- */
 
 export default function AIFollowUpPlansTab() {
+  const { t, tp } = useI18n()
   const [plans, setPlans] = useState<PlanItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -119,10 +121,10 @@ export default function AIFollowUpPlansTab() {
       setTotal(data.total || 0)
       setModelStats(data.modelStats || [])
     } catch {
-      toast.error('Erreur de chargement')
+      toast.error(t('admin.ai_plans_tab.toast_load_error'))
     }
     setLoading(false)
-  }, [page, search, stageFilter, modelFilter])
+  }, [page, search, stageFilter, modelFilter, t])
 
   useEffect(() => { fetchPlans() }, [fetchPlans])
 
@@ -136,11 +138,11 @@ export default function AIFollowUpPlansTab() {
     navigator.clipboard.writeText(stage.script)
     setCopiedStage(stage.step)
     setTimeout(() => setCopiedStage(null), 2000)
-    toast.success('Script copié')
+    toast.success(t('admin.ai_plans_tab.toast_script_copied'))
   }
 
   const formatDate = (iso: string) =>
-    new Date(iso).toLocaleDateString('fr-FR', {
+    new Date(iso).toLocaleDateString(undefined, {
       day: 'numeric', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
@@ -151,24 +153,24 @@ export default function AIFollowUpPlansTab() {
     const now = new Date()
     const diffMs = date.getTime() - now.getTime()
     const diffDays = Math.round(diffMs / (24 * 60 * 60 * 1000))
-    if (diffDays < 0) return `il y a ${Math.abs(diffDays)}j`
-    if (diffDays === 0) return "aujourd'hui"
-    if (diffDays === 1) return 'demain'
-    return `dans ${diffDays}j`
+    if (diffDays < 0) return t('admin.ai_plans_tab.relative_days_ago', { count: Math.abs(diffDays) })
+    if (diffDays === 0) return t('admin.ai_plans_tab.relative_today')
+    if (diffDays === 1) return t('admin.ai_plans_tab.relative_tomorrow')
+    return t('admin.ai_plans_tab.relative_in_days', { count: diffDays })
   }
 
   return (
     <div className="p-4 space-y-4">
       <SectionHeader
-        title="Plans de suivi IA"
-        subtitle={`${total} plan${total > 1 ? 's' : ''} généré${total > 1 ? 's' : ''} par lead`}
+        title={t('admin.ai_plans_tab.title')}
+        subtitle={tp('admin.ai_plans_tab.subtitle_one', total, { count: total })}
       />
 
       {/* Model usage stats */}
       {modelStats.length > 0 && (
         <div className="bg-white rounded-2xl p-3 shadow-sm border border-gray-100">
           <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
-            <Cpu className="w-3 h-3" /> Répartition par modèle
+            <Cpu className="w-3 h-3" /> {t('admin.ai_plans_tab.model_distribution')}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {modelStats.map((m) => (
@@ -198,21 +200,21 @@ export default function AIFollowUpPlansTab() {
           <SearchBar
             value={search}
             onChange={(v) => { setSearch(v); setPage(1) }}
-            placeholder="Nom, entreprise, ville..."
+            placeholder={t('admin.ai_plans_tab.search_placeholder')}
           />
         </div>
         <FilterSelect
           value={stageFilter}
           onChange={(v) => { setStageFilter(v); setPage(1) }}
           options={stageOptions}
-          placeholder="Toutes étapes"
+          placeholder={t('admin.ai_plans_tab.stage_filter_all')}
         />
         {modelOptions.length > 0 && (
           <FilterSelect
             value={modelFilter}
             onChange={(v) => { setModelFilter(v); setPage(1) }}
             options={modelOptions}
-            placeholder="Tous modèles"
+            placeholder={t('admin.ai_plans_tab.model_filter_all')}
           />
         )}
       </div>
@@ -222,7 +224,7 @@ export default function AIFollowUpPlansTab() {
         <LoadingSkeleton />
       ) : plans.length === 0 ? (
         <EmptyState
-          message="Aucun plan de suivi IA généré pour le moment"
+          message={t('admin.ai_plans_tab.empty_message')}
           icon={Sparkles}
         />
       ) : (
@@ -265,7 +267,7 @@ export default function AIFollowUpPlansTab() {
                       <p className="text-[10px] text-gray-400 mt-0.5 flex items-center gap-2 flex-wrap">
                         <span className="flex items-center gap-1">
                           <Layers className="w-3 h-3" />
-                          {item.plan.stages.length} étapes
+                          {t('admin.ai_plans_tab.steps_count', { count: item.plan.stages.length })}
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
@@ -278,14 +280,14 @@ export default function AIFollowUpPlansTab() {
                         {nextStage && (
                           <span className="flex items-center gap-1 text-[#FF7B54] font-medium">
                             <Clock className="w-3 h-3" />
-                            Prochaine étape {formatRelative(item.leadNextFollowUpAt)}
+                            {t('admin.ai_plans_tab.next_step_label')} {formatRelative(item.leadNextFollowUpAt)}
                           </span>
                         )}
                       </p>
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-sm font-bold">{item.leadScore}</p>
-                      <p className="text-[10px] text-gray-400">score</p>
+                      <p className="text-[10px] text-gray-400">{t('admin.ai_plans_tab.score_label')}</p>
                     </div>
                     <ChevronRight className="w-4 h-4 text-gray-300 shrink-0 mt-3" />
                   </div>
@@ -293,7 +295,7 @@ export default function AIFollowUpPlansTab() {
                   {/* Strategy preview */}
                   <div className="mt-3 bg-[#6C3FA9]/5 rounded-xl p-2.5 border border-[#6C3FA9]/10">
                     <p className="text-[10px] font-semibold text-[#6C3FA9] uppercase tracking-wider mb-1">
-                      Stratégie
+                      {t('admin.ai_plans_tab.strategy_label')}
                     </p>
                     <p className="text-xs text-gray-700 line-clamp-2">{item.plan.strategy}</p>
                   </div>
@@ -310,7 +312,7 @@ export default function AIFollowUpPlansTab() {
       <BottomSheet
         open={!!selected}
         onClose={() => setSelected(null)}
-        title={selected ? `Plan · ${selected.leadName}` : 'Plan'}
+        title={selected ? t('admin.ai_plans_tab.detail_title', { name: selected.leadName }) : t('admin.ai_plans_tab.title')}
       >
         {selected && (
           <div className="space-y-4">
@@ -322,25 +324,25 @@ export default function AIFollowUpPlansTab() {
                   color={STAGE_COLORS[selected.leadStage] || 'bg-gray-100 text-gray-600'}
                 />
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${modelBadgeColor(selected.plan.model)}`}>
-                  Proposé par {selected.modelDisplay}
+                  {t('admin.ai_plans_tab.proposed_by', { model: selected.modelDisplay })}
                 </span>
                 <span className="text-[10px] text-gray-400 flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  Généré le {formatDate(selected.plan.createdAt)}
+                  {t('admin.ai_plans_tab.generated_on', { date: formatDate(selected.plan.createdAt) })}
                 </span>
               </div>
-              <DetailRow label="Entreprise" value={selected.leadBusiness} />
-              <DetailRow label="Ville" value={selected.leadCity} />
-              <DetailRow label="Score" value={selected.leadScore} />
-              <DetailRow label="Contacts déjà effectués" value={selected.leadContactCount} />
-              <DetailRow label="Prochaine relance" value={formatRelative(selected.leadNextFollowUpAt) || '—'} />
-              <DetailRow label="Utilisateur" value={selected.userName || selected.userPhone || '—'} />
+              <DetailRow label={t('admin.ai_plans_tab.business_label')} value={selected.leadBusiness} />
+              <DetailRow label={t('admin.ai_plans_tab.city_label')} value={selected.leadCity} />
+              <DetailRow label={t('admin.ai_plans_tab.score_label_detail')} value={selected.leadScore} />
+              <DetailRow label={t('admin.ai_plans_tab.contacts_done_label')} value={selected.leadContactCount} />
+              <DetailRow label={t('admin.ai_plans_tab.next_followup_label')} value={formatRelative(selected.leadNextFollowUpAt) || '—'} />
+              <DetailRow label={t('admin.ai_plans_tab.user_label')} value={selected.userName || selected.userPhone || '—'} />
             </div>
 
             {/* Strategy */}
             <div className="bg-[#6C3FA9]/5 rounded-xl p-3 border border-[#6C3FA9]/10">
               <p className="text-[10px] font-semibold text-[#6C3FA9] uppercase tracking-wider mb-1 flex items-center gap-1">
-                <Sparkles className="w-3 h-3" /> Stratégie globale
+                <Sparkles className="w-3 h-3" /> {t('admin.ai_plans_tab.global_strategy')}
               </p>
               <p className="text-xs text-gray-700 leading-relaxed">{selected.plan.strategy}</p>
             </div>
@@ -348,7 +350,7 @@ export default function AIFollowUpPlansTab() {
             {/* Stages timeline */}
             <div>
               <p className="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5" /> Étapes ({selected.plan.stages.length})
+                <Layers className="w-3.5 h-3.5" /> {t('admin.ai_plans_tab.stages_title', { count: selected.plan.stages.length })}
               </p>
               <div className="space-y-2">
                 {selected.plan.stages.map((stage) => {
@@ -370,9 +372,9 @@ export default function AIFollowUpPlansTab() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs font-bold text-gray-900">Étape {stage.step}</span>
+                            <span className="text-xs font-bold text-gray-900">{t('admin.ai_plans_tab.step_label', { count: stage.step })}</span>
                             <span className="text-[9px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded-full">
-                              J+{stage.dayOffset}
+                              {t('admin.ai_plans_tab.day_label', { count: stage.dayOffset })}
                             </span>
                             <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full ${chColor}`}>
                               {channelLabels[stage.channel] || stage.channel}
@@ -390,14 +392,14 @@ export default function AIFollowUpPlansTab() {
                       {isExpanded && (
                         <div className="px-3 pb-3 space-y-2 border-t border-gray-100 pt-2">
                           <p className="text-[10px] text-gray-400">
-                            Déclenchement : {new Date(fireDate).toLocaleDateString('fr-FR', {
+                            {t('admin.ai_plans_tab.trigger_label', { date: new Date(fireDate).toLocaleDateString(undefined, {
                               day: 'numeric', month: 'long', year: 'numeric',
-                            })}
+                            }) })}
                           </p>
                           <div className="bg-gray-50 rounded-lg p-2.5">
                             <div className="flex items-center justify-between mb-1.5">
                               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">
-                                Script
+                                {t('admin.ai_plans_tab.script_label')}
                               </span>
                               <button
                                 onClick={(e) => {
@@ -407,9 +409,9 @@ export default function AIFollowUpPlansTab() {
                                 className="text-[10px] text-[#FF7B54] font-medium flex items-center gap-1 hover:opacity-70"
                               >
                                 {copiedStage === stage.step ? (
-                                  <><Check className="w-3 h-3" /> Copié</>
+                                  <><Check className="w-3 h-3" /> {t('admin.ai_plans_tab.copied')}</>
                                 ) : (
-                                  <><Copy className="w-3 h-3" /> Copier</>
+                                  <><Copy className="w-3 h-3" /> {t('admin.ai_plans_tab.copy')}</>
                                 )}
                               </button>
                             </div>
@@ -420,7 +422,7 @@ export default function AIFollowUpPlansTab() {
                           {stage.tips.length > 0 && (
                             <div>
                               <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1">
-                                Conseils
+                                {t('admin.ai_plans_tab.advice_label')}
                               </p>
                               <ul className="space-y-1">
                                 {stage.tips.map((tip, i) => (
@@ -447,9 +449,7 @@ export default function AIFollowUpPlansTab() {
             <div className="bg-[#FF7B54]/5 rounded-xl p-3 border border-[#FF7B54]/10 flex items-start gap-2">
               <AlertCircle className="w-4 h-4 text-[#FF7B54] shrink-0 mt-0.5" />
               <p className="text-[11px] text-gray-600 leading-relaxed">
-                Ce plan a été généré automatiquement par l'IA pour aider l'utilisateur à structurer
-                son suivi commercial. Pour le coaching, utilisez le script et les conseils comme
-                point de départ d'une discussion personnalisée avec l'utilisateur.
+                {t('admin.ai_plans_tab.coaching_note')}
               </p>
             </div>
           </div>

@@ -8,6 +8,7 @@ import {
   Menu, X, Grid3X3, Sparkles
 } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useI18n } from '@/lib/i18n'
 
 // Lazy load tab components for code splitting
 const DashboardTab = dynamic(() => import('./components/DashboardTab'), { ssr: false })
@@ -26,30 +27,32 @@ type AdminTab = 'dashboard' | 'users' | 'leads' | 'campaigns' | 'credits' | 'not
 
 interface TabDef {
   id: AdminTab
-  label: string
+  /** i18n key under admin.tabs.* */
+  labelKey: string
   icon: typeof LayoutDashboard
   color: string
-  section?: string
+  section?: 'principal' | 'donnees' | 'config'
 }
 
 const tabs: TabDef[] = [
-  { id: 'dashboard', label: 'Stats', icon: LayoutDashboard, color: 'from-[#FF7B54] to-[#FFB347]', section: 'principal' },
-  { id: 'users', label: 'Utilisateurs', icon: Users, color: 'from-[#FF7B54] to-[#FFB347]', section: 'principal' },
-  { id: 'leads', label: 'Clients', icon: Contact, color: 'from-[#6C3FA9] to-[#FF7B54]', section: 'principal' },
-  { id: 'credits', label: 'Crédits', icon: Coins, color: 'from-[#FFB347] to-[#FF7B54]', section: 'principal' },
-  { id: 'notifications', label: 'Alertes', icon: Bell, color: 'from-[#6C3FA9] to-[#2EC4B6]', section: 'principal' },
-  { id: 'campaigns', label: 'Campagnes', icon: Megaphone, color: 'from-[#2EC4B6] to-[#4CAF50]', section: 'donnees' },
-  { id: 'contacts', label: 'Contacts', icon: MessageSquare, color: 'from-[#2EC4B6] to-[#6C3FA9]', section: 'donnees' },
-  { id: 'ai_plans', label: 'Plans IA', icon: Sparkles, color: 'from-[#6C3FA9] to-[#FFB347]', section: 'donnees' },
-  { id: 'ai', label: 'IA Config', icon: Cpu, color: 'from-[#6C3FA9] to-[#FF7B54]', section: 'config' },
-  { id: 'audit', label: 'Journal', icon: FileText, color: 'from-[#FFB347] to-[#2EC4B6]', section: 'config' },
-  { id: 'system', label: 'Système', icon: Settings, color: 'from-[#2EC4B6] to-[#4CAF50]', section: 'config' },
+  { id: 'dashboard', labelKey: 'admin.tabs.dashboard', icon: LayoutDashboard, color: 'from-[#FF7B54] to-[#FFB347]', section: 'principal' },
+  { id: 'users', labelKey: 'admin.tabs.users', icon: Users, color: 'from-[#FF7B54] to-[#FFB347]', section: 'principal' },
+  { id: 'leads', labelKey: 'admin.tabs.leads', icon: Contact, color: 'from-[#6C3FA9] to-[#FF7B54]', section: 'principal' },
+  { id: 'credits', labelKey: 'admin.tabs.credits', icon: Coins, color: 'from-[#FFB347] to-[#FF7B54]', section: 'principal' },
+  { id: 'notifications', labelKey: 'admin.tabs.notifications', icon: Bell, color: 'from-[#6C3FA9] to-[#2EC4B6]', section: 'principal' },
+  { id: 'campaigns', labelKey: 'admin.tabs.campaigns', icon: Megaphone, color: 'from-[#2EC4B6] to-[#4CAF50]', section: 'donnees' },
+  { id: 'contacts', labelKey: 'admin.tabs.contacts', icon: MessageSquare, color: 'from-[#2EC4B6] to-[#6C3FA9]', section: 'donnees' },
+  { id: 'ai_plans', labelKey: 'admin.tabs.ai_plans', icon: Sparkles, color: 'from-[#6C3FA9] to-[#FFB347]', section: 'donnees' },
+  { id: 'ai', labelKey: 'admin.tabs.ai', icon: Cpu, color: 'from-[#6C3FA9] to-[#FF7B54]', section: 'config' },
+  { id: 'audit', labelKey: 'admin.tabs.audit', icon: FileText, color: 'from-[#FFB347] to-[#2EC4B6]', section: 'config' },
+  { id: 'system', labelKey: 'admin.tabs.system', icon: Settings, color: 'from-[#2EC4B6] to-[#4CAF50]', section: 'config' },
 ]
 
 // Bottom nav shows first 5 tabs
 const bottomNavTabs = tabs.slice(0, 5)
 
 export default function AdminPanel() {
+  const { t } = useI18n()
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
@@ -86,13 +89,13 @@ export default function AdminPanel() {
             <div>
               <h1 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 <Shield className="w-5 h-5 text-[#FF7B54]" />
-                ProCible Admin
+                {t('admin.header_title')}
               </h1>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden sm:inline text-xs text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
-              Panel Administration
+              {t('admin.header_subtitle')}
             </span>
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white text-xs font-bold">
               A
@@ -113,7 +116,7 @@ export default function AdminPanel() {
               }`}
             >
               <tab.icon className="w-3.5 h-3.5" />
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           ))}
         </div>
@@ -126,7 +129,7 @@ export default function AdminPanel() {
             {['principal', 'donnees', 'config'].map(section => (
               <div key={section}>
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 py-2">
-                  {section === 'principal' ? 'Principal' : section === 'donnees' ? 'Données' : 'Configuration'}
+                  {t(`admin.sections.${section}`)}
                 </p>
                 {tabs.filter(t => t.section === section).map(tab => (
                   <button
@@ -139,7 +142,7 @@ export default function AdminPanel() {
                     }`}
                   >
                     <tab.icon className="w-4.5 h-4.5" />
-                    {tab.label}
+                    {t(tab.labelKey)}
                   </button>
                 ))}
               </div>
@@ -156,7 +159,7 @@ export default function AdminPanel() {
                 <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
                   <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <Shield className="w-5 h-5 text-[#FF7B54]" />
-                    Admin
+                    {t('admin.mobile_sidebar_title')}
                   </h2>
                   <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-xl hover:bg-gray-100">
                     <X className="w-5 h-5" />
@@ -166,7 +169,7 @@ export default function AdminPanel() {
                   {['principal', 'donnees', 'config'].map(section => (
                     <div key={section}>
                       <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 py-2">
-                        {section === 'principal' ? 'Principal' : section === 'donnees' ? 'Données' : 'Configuration'}
+                        {t(`admin.sections.${section}`)}
                       </p>
                       {tabs.filter(t => t.section === section).map(tab => (
                         <button
@@ -179,7 +182,7 @@ export default function AdminPanel() {
                           }`}
                         >
                           <tab.icon className="w-5 h-5" />
-                          {tab.label}
+                          {t(tab.labelKey)}
                         </button>
                       ))}
                     </div>
@@ -215,7 +218,7 @@ export default function AdminPanel() {
               }`}
             >
               <tab.icon className="w-5 h-5" strokeWidth={activeTab === tab.id ? 2.5 : 1.5} />
-              <span className="text-[10px] font-medium">{tab.label}</span>
+              <span className="text-[10px] font-medium">{t(tab.labelKey)}</span>
             </button>
           ))}
           {/* More button */}
@@ -226,7 +229,7 @@ export default function AdminPanel() {
             }`}
           >
             <Grid3X3 className="w-5 h-5" strokeWidth={!bottomNavTabs.find(t => t.id === activeTab) ? 2.5 : 1.5} />
-            <span className="text-[10px] font-medium">Plus</span>
+            <span className="text-[10px] font-medium">{t('admin.more_button')}</span>
           </button>
         </div>
       </nav>
@@ -245,7 +248,7 @@ export default function AdminPanel() {
             >
               <div className="px-5 pt-4 pb-3 border-b border-gray-100">
                 <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-gray-900">Toutes les sections</h3>
+                <h3 className="text-lg font-bold text-gray-900">{t('admin.more_sections_title')}</h3>
               </div>
               <div className="p-5">
                 <div className="grid grid-cols-3 gap-3">
@@ -263,7 +266,7 @@ export default function AdminPanel() {
                         <tab.icon className="w-5 h-5 text-white" />
                       </div>
                       <span className={`text-[11px] font-medium ${activeTab === tab.id ? 'text-[#FF7B54]' : 'text-gray-600'}`}>
-                        {tab.label}
+                        {t(tab.labelKey)}
                       </span>
                     </button>
                   ))}
