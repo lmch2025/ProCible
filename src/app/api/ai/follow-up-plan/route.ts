@@ -3,6 +3,7 @@ import { db, withDbFallback } from '@/lib/db'
 import { deductCredits, getEffectiveCost, grantCredits } from '@/lib/credits-service'
 import { generateFollowUpPlan, type FollowUpPlan } from '@/lib/ai-service'
 import { encodePlan, PLAN_MARKER } from '@/lib/ai-content'
+import { getLocaleFromRequest, tServer } from '@/lib/i18n/server'
 
 /**
  * POST /api/ai/follow-up-plan
@@ -24,22 +25,22 @@ import { encodePlan, PLAN_MARKER } from '@/lib/ai-content'
  * On AI failure, credits are refunded.
  */
 
-/** Helper for safe refund. */
-async function grantCreditsSafe(userId: string, amount: number, note: string) {
+async function grantCreditsSafe(userId: string, amount: number, note: string, locale: 'fr' | 'en' = 'fr') {
   try {
-    await grantCredits({ userId, amount, action: 'system.refund', label: 'Remboursement de crédits', note })
+    await grantCredits({ userId, amount, action: 'system.refund', label: tServer(locale, 'api.note_refund'), note })
   } catch (e) {
     console.error('Refund failed:', e)
   }
 }
 
 export async function POST(request: Request) {
+  const locale = getLocaleFromRequest(request)
   try {
     const body = await request.json()
     const { leadId, userId } = body
 
     if (!leadId) {
-      return NextResponse.json({ error: 'leadId requis' }, { status: 400 })
+      return NextResponse.json({ error: tServer(locale, 'api.ai_lead_required') }, { status: 400 })
     }
 
     // Load the lead + its owner's product (most recent campaign productName).
@@ -48,13 +49,13 @@ export async function POST(request: Request) {
       null as any,
     )
     if (!lead) {
-      return NextResponse.json({ error: 'Lead introuvable' }, { status: 404 })
+      return NextResponse.json({ error: tServer(locale, 'api.ai_lead_not_found') }, { status: 404 })
     }
 
     // SECURITY: ownership check.
     const ownerId = userId || lead.userId
     if (userId && lead.userId !== userId) {
-      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 })
+      return NextResponse.json({ error: tServer(locale, 'api.ai_access_denied') }, { status: 403 })
     }
 
     // Find the user's most recent campaign productName (for personalization).
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
       )
       if (balance && balance.credits < costInfo.cost) {
         return NextResponse.json({
-          error: `Crédits insuffisants. Le plan de suivi IA coûte ${costInfo.cost} crédit(s). Solde : ${balance.credits}.`,
+          error: tServer(locale, 'api.ai_insufficient_plan', { cost: costInfo.cost, balance: balance.credits }),
           code: 'insufficient_credits',
           required: costInfo.cost,
           balance: balance.credits,
@@ -91,11 +92,13 @@ export async function POST(request: Request) {
       action: 'ai.follow_up_plan',
       entityId: leadId,
       idempotencyKey,
-      note: `Plan de suivi IA pour ${lead.name}`,
+      note: tServer(locale, 'api.note_ai_plan', { name: lead.name }),
     })
     if (!deduct.ok) {
       return NextResponse.json({
-        error: deduct.reason === 'insufficient' ? 'Crédits insuffisants' : 'Échec déduction crédits',
+        error: deduct.reason === 'insufficient'
+          ? tServer(locale, 'api.ai_insufficient_short')
+          : tServer(locale, 'api.ai_deduction_failed'),
         code: deduct.reason === 'insufficient' ? 'insufficient_credits' : 'deduct_failed',
         required: deduct.cost,
       }, { status: 402 })
@@ -117,11 +120,11 @@ export async function POST(request: Request) {
     } catch (aiErr) {
       // Refund on AI failure.
       if (deduct.cost > 0) {
-        await grantCreditsSafe(ownerId, deduct.cost, `Remboursement : échec génération plan IA pour ${lead.name}`)
+        await grantCreditsSafe(ownerId, deduct.cost, tServer(locale, 'api.note_ai_plan_refund', { name: lead.name }), locale)
       }
       console.error('Follow-up plan AI error:', aiErr)
       return NextResponse.json(
-        { error: 'Échec de la génération du plan IA. Veuillez réessayer.' },
+        { error: tServer(locale, 'api.ai_plan_failed') },
         { status: 502 },
       )
     }
@@ -157,8 +160,8 @@ export async function POST(request: Request) {
           data: {
             userId: ownerId,
             type: 'follow_up',
-            title: `Suivi ${lead.name} — ${stage.objective}`,
-            message: `Étape ${stage.step} · Canal: ${stage.channel}. Script prêt dans l'app. Cliquez pour ouvrir le lead.`,
+            title: tServer(locale, 'notifications_db.followup_title', { lead: lead.name, step: stage.objective }),
+            message: tServer(locale, 'notifications_db.followup_message', { step: stage.step, channel: stage.channel }),
             read: false,
             leadId,
             createdAt: fireAt, // scheduled — used by the notification system
@@ -189,7 +192,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Follow-up plan error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erreur lors de la génération du plan' },
+      { error: error instanceof Error ? error.message : tServer(getLocaleFromRequest(request), 'api.ai_plan_error') },
       { status: 500 },
     )
   }
@@ -200,11 +203,12 @@ export async function POST(request: Request) {
  * Returns the stored follow-up plan for a lead (if any).
  */
 export async function GET(request: Request) {
+  const locale = getLocaleFromRequest(request)
   try {
     const url = new URL(request.url)
     const leadId = url.searchParams.get('leadId')
     if (!leadId) {
-      return NextResponse.json({ error: 'leadId requis' }, { status: 400 })
+      return NextResponse.json({ error: tServer(locale, 'api.ai_lead_required') }, { status: 400 })
     }
 
     const lead = await withDbFallback(
@@ -215,7 +219,7 @@ export async function GET(request: Request) {
       null as any,
     )
     if (!lead) {
-      return NextResponse.json({ error: 'Lead introuvable' }, { status: 404 })
+      return NextResponse.json({ error: tServer(locale, 'api.ai_lead_not_found') }, { status: 404 })
     }
 
     if (!lead.aiSuggestion || !lead.aiSuggestion.startsWith(PLAN_MARKER)) {

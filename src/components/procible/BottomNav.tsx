@@ -3,17 +3,19 @@
 import { useProcibleStore, type Screen } from '@/store/procible-store'
 import { Home, Users, Bell, User, Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-
-const navItems: { screen: Screen; icon: typeof Home; label: string }[] = [
-  { screen: 'home', icon: Home, label: 'Accueil' },
-  { screen: 'leads', icon: Users, label: 'Clients' },
-  { screen: 'notifications', icon: Bell, label: 'Alertes' },
-  { screen: 'profile', icon: User, label: 'Profil' },
-]
+import { useI18n } from '@/lib/i18n'
 
 export default function BottomNav() {
   const { currentScreen, navigateTo, notifications, setShowProspectionForm, credits } = useProcibleStore()
+  const { t, tp } = useI18n()
   const unreadCount = notifications.filter(n => !n.read).length
+
+  const navItems: { screen: Screen; icon: typeof Home; labelKey: string }[] = [
+    { screen: 'home', icon: Home, labelKey: 'nav.home' },
+    { screen: 'leads', icon: Users, labelKey: 'nav.leads' },
+    { screen: 'notifications', icon: Bell, labelKey: 'nav.notifications' },
+    { screen: 'profile', icon: User, labelKey: 'nav.profile' },
+  ]
 
   // Low-credit warning persists across all screens via BottomNav
   const LOW_CREDIT_THRESHOLD = 2
@@ -36,7 +38,7 @@ export default function BottomNav() {
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-border/50 pb-safe">
       <div className="max-w-lg mx-auto flex items-center justify-around py-2 relative">
         {/* Left items */}
-        {leftItems.map(({ screen, icon: Icon, label }) => {
+        {leftItems.map(({ screen, icon: Icon, labelKey }) => {
           const active = isActive(screen)
           return (
             <button
@@ -58,7 +60,7 @@ export default function BottomNav() {
                 )}
               </div>
               <span className={`text-[11px] font-medium ${active ? 'text-[#FF7B54]' : 'text-muted-foreground'}`}>
-                {label}
+                {t(labelKey)}
               </span>
             </button>
           )
@@ -123,18 +125,21 @@ export default function BottomNav() {
             <Plus className="w-8 h-8 text-white relative z-10" strokeWidth={3} />
           </motion.button>
 
-          <span className="text-[10px] font-semibold text-[#FF7B54] mt-1">Nouveau</span>
+          <span className="text-[10px] font-semibold text-[#FF7B54] mt-1">{t('nav.new')}</span>
         </div>
 
         {/* Right items */}
-        {rightItems.map(({ screen, icon: Icon, label }) => {
+        {rightItems.map(({ screen, icon: Icon, labelKey }) => {
           const active = isActive(screen)
           const showLowCreditPulse = screen === 'profile' && isLowCredits
+          const ariaLabel = showLowCreditPulse
+            ? tp('nav.profile_aria', credits, { count: credits })
+            : t(labelKey)
           return (
             <button
               key={screen}
               onClick={() => navigateTo(screen)}
-              aria-label={showLowCreditPulse ? `Profil — ${credits} crédit${credits > 1 ? 's' : ''} restant${credits > 1 ? 's' : ''}` : label}
+              aria-label={ariaLabel}
               className="relative flex flex-col items-center gap-1 py-2 px-3 min-w-[60px] transition-colors"
             >
               <div className="relative">
@@ -183,7 +188,7 @@ export default function BottomNav() {
                 )}
               </div>
               <span className={`text-[11px] font-medium ${active ? 'text-[#FF7B54]' : showLowCreditPulse ? 'text-[#EF4444]' : 'text-muted-foreground'}`}>
-                {label}
+                {t(labelKey)}
               </span>
             </button>
           )

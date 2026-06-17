@@ -6,6 +6,7 @@ import { X, Image as ImageIcon, MapPin, Send, Loader2, Plus, Check, Globe2, Sear
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { toast } from 'sonner'
 import { modelDisplayName, modelBadgeColor } from '@/lib/ai-content'
+import { useI18n } from '@/lib/i18n'
 import {
   ALL_COUNTRIES,
   iso2ToFlag,
@@ -38,6 +39,7 @@ interface CreditRuleLite {
 
 export default function ProspectionForm() {
   const { showProspectionForm, setShowProspectionForm, addCampaign, prospectionSubmitting, setProspectionSubmitting, credits, navigateTo } = useProcibleStore()
+  const { t, tp, locale } = useI18n()
 
   const [productName, setProductName] = useState('')
   const [selected, setSelected] = useState<SelectedEntry[]>([])
@@ -50,7 +52,7 @@ export default function ProspectionForm() {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch('/api/credits')
+        const res = await fetch('/api/credits', { headers: { 'x-locale': locale } })
         if (!res.ok) return
         const data = await res.json()
         if (cancelled) return
@@ -197,11 +199,11 @@ export default function ProspectionForm() {
 
   const handleSubmit = async () => {
     if (!productName.trim()) {
-      toast.error('Nom du produit requis')
+      toast.error(t('prospection.toast_product_required'))
       return
     }
     if (selected.length === 0) {
-      toast.error('Sélectionnez au moins une ville ou un pays')
+      toast.error(t('prospection.toast_zones_required'))
       return
     }
 
@@ -209,7 +211,7 @@ export default function ProspectionForm() {
     try {
       const res = await fetch('/api/prospection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-locale': locale },
         body: JSON.stringify({
           productName: productName.trim(),
           locations: locationsString,
@@ -226,49 +228,43 @@ export default function ProspectionForm() {
           const store = useProcibleStore.getState()
           store.setCredits(data.balanceAfter)
         }
-        const freeNote = data.creditsFreeQuotaUsed ? ' (quota gratuit)' : ''
 
         // Build a rich description from the AI interpretation if available.
-        // This surfaces the AI's value to the user immediately: which buyer
-        // segments were targeted, which competitor types were excluded, and
-        // which model produced the interpretation.
         let description: string | undefined
         if (data.interpretation) {
           const interp = data.interpretation
           const targets = interp.targetSegments?.slice(0, 3).join(', ')
           const exclusions = interp.exclusions?.slice(0, 2).join(', ')
           const parts: string[] = []
-          if (targets) parts.push(`Cibles : ${targets}${interp.targetSegments.length > 3 ? '…' : ''}`)
-          if (exclusions) parts.push(`Exclus : ${exclusions}${interp.exclusions.length > 2 ? '…' : ''}`)
-          if (data.creditsUsed > 0) parts.push(`−${data.creditsUsed} crédits${freeNote}`)
+          if (targets) parts.push(t('prospection.toast_targets', { targets: `${targets}${interp.targetSegments.length > 3 ? '…' : ''}` }))
+          if (exclusions) parts.push(t('prospection.toast_excluded', { targets: `${exclusions}${interp.exclusions.length > 2 ? '…' : ''}` }))
+          if (data.creditsUsed > 0) parts.push(t('prospection.toast_free_quota', { count: data.creditsUsed }))
           description = parts.join(' · ')
         } else if (data.creditsUsed > 0) {
-          description = `−${data.creditsUsed} crédits${freeNote}`
+          description = t('prospection.toast_free_quota', { count: data.creditsUsed })
         }
 
         toast.success(
-          `Campagne lancée ! ${leadsCount} client${leadsCount > 1 ? 's' : ''} trouvé${leadsCount > 1 ? 's' : ''} dans ${locationCount} zone${locationCount > 1 ? 's' : ''}.`,
+          t('prospection.toast_launched', { leads: leadsCount, zones: locationCount }),
           description ? { description, duration: 7000 } : undefined,
         )
 
         // If interpretation was generated, show a second informational toast
-        // with the buyer persona and the model name so the user understands
-        // both the targeting AND which AI produced it.
         if (data.interpretation?.buyerPersona) {
           const interp = data.interpretation
           const modelId = interp.model || ''
           const modelLabel = modelDisplayName(modelId)
           const personaDescription = modelLabel
-            ? `${interp.buyerPersona} · Proposé par ${modelLabel}`
+            ? `${interp.buyerPersona} · ${t('lead_detail.proposed_by', { model: modelLabel })}`
             : interp.buyerPersona
           setTimeout(() => {
-            toast.info('Ciblage IA appliqué', {
+            toast.info(t('prospection.toast_ai_applied'), {
               description: personaDescription,
               duration: 6500,
               icon: modelId ? (
                 <span
                   className={`inline-flex items-center justify-center w-4 h-4 rounded-full text-[8px] font-bold ${modelBadgeColor(modelId)}`}
-                  title={`Modèle IA : ${modelLabel}`}
+                  title={t('lead_detail.ai_model_label', { model: modelLabel })}
                 >
                   <Cpu className="w-2.5 h-2.5" />
                 </span>
@@ -286,16 +282,16 @@ export default function ProspectionForm() {
         setShowProspectionForm(false)
       } else if (res.status === 402) {
         const err = await res.json().catch(() => ({}))
-        toast.error(err.error || 'Crédits insuffisants', {
-          description: err.balance !== undefined ? `Solde actuel : ${err.balance} · Requis : ${err.required}` : undefined,
+        toast.error(err.error || t('prospection.toast_insufficient'), {
+          description: err.balance !== undefined ? t('prospection.toast_balance_required', { balance: err.balance, required: err.required }) : undefined,
           duration: 6000,
         })
       } else {
         const err = await res.json().catch(() => ({}))
-        toast.error(err.error || 'Erreur lors du lancement')
+        toast.error(err.error || t('prospection.toast_launch_failed'))
       }
     } catch {
-      toast.error('Erreur de connexion')
+      toast.error(t('prospection.toast_connection_error'))
     }
     setProspectionSubmitting(false)
   }
@@ -333,8 +329,8 @@ export default function ProspectionForm() {
 
             <div className="px-5 pb-4 flex items-center justify-between border-b border-border/30">
               <div>
-                <h2 className="text-xl font-bold">Nouvelle campagne</h2>
-                <p className="text-sm text-muted-foreground">ProCible trouvera des clients pour vous</p>
+                <h2 className="text-xl font-bold">{t('prospection.title')}</h2>
+                <p className="text-sm text-muted-foreground">{t('prospection.subtitle')}</p>
               </div>
               <button
                 onClick={() => setShowProspectionForm(false)}
@@ -347,12 +343,12 @@ export default function ProspectionForm() {
             <div className="p-5 space-y-5">
               {/* Product name */}
               <div>
-                <label className="text-sm font-medium mb-2 block">Nom du produit / service</label>
+                <label className="text-sm font-medium mb-2 block">{t('prospection.product_label')}</label>
                 <input
                   type="text"
                   value={productName}
                   onChange={(e) => setProductName(e.target.value)}
-                  placeholder="Ex : Restaurant Le Palmier"
+                  placeholder={t('prospection.product_placeholder')}
                   className="w-full px-4 py-3 rounded-xl bg-secondary border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
                 />
               </div>
@@ -361,10 +357,10 @@ export default function ProspectionForm() {
               <div>
                 <label className="text-sm font-medium mb-2 flex items-center gap-2">
                   <Globe2 className="w-4 h-4 text-[#FF7B54]" />
-                  Zones cibles
+                  {t('prospection.zones_label')}
                   {locationCount > 0 && (
                     <span className="ml-auto text-xs bg-[#FF7B54]/10 text-[#FF7B54] px-2 py-0.5 rounded-full font-medium">
-                      {locationCount} zone{locationCount > 1 ? 's' : ''}
+                      {tp(`prospection.zones_count_${locationCount === 1 ? 'one' : 'other'}`, locationCount, { count: locationCount })}
                     </span>
                   )}
                 </label>
@@ -378,7 +374,7 @@ export default function ProspectionForm() {
                         className="inline-flex items-center gap-1.5 bg-[#FF7B54]/10 text-[#FF7B54] text-xs font-medium px-2.5 py-1.5 rounded-full"
                       >
                         <span>{iso2ToFlag(s.iso2)}</span>
-                        <span>{s.city || `Tout ${countryNameFR(s.iso2)}`}</span>
+                        <span>{s.city || t('prospection.whole_country', { country: countryNameFR(s.iso2) })}</span>
                         <button onClick={() => removeSelected(s.raw)} className="ml-0.5">
                           <X className="w-3 h-3" />
                         </button>
@@ -416,7 +412,7 @@ export default function ProspectionForm() {
                         setShowCountryDropdown(false)
                       }
                     }}
-                    placeholder="Ajouter un pays (entier)..."
+                    placeholder={t('prospection.add_country_placeholder')}
                     className="w-full pl-10 pr-24 py-3 rounded-xl bg-secondary border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
                   />
                   {selectedCountryObj && (
@@ -426,7 +422,7 @@ export default function ProspectionForm() {
                         countryInputRef.current?.focus()
                       }}
                       className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 bg-[#FF7B54]/10 text-[#FF7B54] text-[11px] font-medium px-2 py-1 rounded-full"
-                      title="Pays filtrant la recherche de villes"
+                      title={t('prospection.country_filter_title')}
                     >
                       <span>{iso2ToFlag(selectedCountryObj.iso2)}</span>
                       <span className="max-w-[80px] truncate">{countryNameFR(selectedCountryObj.iso2)}</span>
@@ -471,7 +467,7 @@ export default function ProspectionForm() {
                     className="text-[11px] text-[#FF7B54] font-medium mb-2 inline-flex items-center gap-1 hover:underline"
                   >
                     <Plus className="w-3 h-3" />
-                    Ajouter « Tout {countryNameFR(selectedCountryObj.iso2)} »
+                    {t('prospection.add_whole_country', { country: countryNameFR(selectedCountryObj.iso2) })}
                   </button>
                 )}
 
@@ -502,8 +498,8 @@ export default function ProspectionForm() {
                     }}
                     placeholder={
                       selectedCountryObj
-                        ? `Ville dans ${countryNameFR(selectedCountryObj.iso2)}...`
-                        : 'Ville (n\'importe quel pays)...'
+                        ? t('prospection.city_in_country_placeholder', { country: countryNameFR(selectedCountryObj.iso2) })
+                        : t('prospection.city_any_placeholder')
                     }
                     className="w-full pl-10 pr-10 py-3 rounded-xl bg-secondary border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF7B54]/30"
                   />
@@ -541,19 +537,19 @@ export default function ProspectionForm() {
                     <div className="absolute top-full left-0 right-0 mt-1 bg-card rounded-xl shadow-lg border border-border/50 p-3 text-xs text-muted-foreground flex items-start gap-2 z-20">
                       <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
                       <span>
-                        Aucune ville trouvée pour « {cityQuery.trim()} »{selectedCountryObj ? ` en ${countryNameFR(selectedCountryObj.iso2)}` : ''}. Essayez un autre nom.
+                        {t('prospection.city_empty', { query: cityQuery.trim(), country: selectedCountryObj ? countryNameFR(selectedCountryObj.iso2) : '' })}
                       </span>
                     </div>
                   )}
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1.5">
-                  Tapez au moins 2 lettres pour rechercher une ville. Vous pouvez mélanger plusieurs pays et villes.
+                  {t('prospection.city_helper')}
                 </p>
               </div>
 
               {/* Images */}
               <div>
-                <label className="text-sm font-medium mb-2 block">Images du produit (optionnel)</label>
+                <label className="text-sm font-medium mb-2 block">{t('prospection.images_label')}</label>
                 <div className="grid grid-cols-3 gap-2">
                   {images.map((img, i) => (
                     <div key={i} className="relative aspect-square rounded-xl overflow-hidden">
@@ -572,7 +568,7 @@ export default function ProspectionForm() {
                       className="aspect-square rounded-xl border-2 border-dashed border-border flex flex-col items-center justify-center gap-1 hover:border-[#FF7B54] hover:bg-[#FF7B54]/5 transition-colors"
                     >
                       <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                      <span className="text-[10px] text-muted-foreground">Ajouter</span>
+                      <span className="text-[10px] text-muted-foreground">{t('prospection.add')}</span>
                     </button>
                   )}
                 </div>
@@ -596,10 +592,10 @@ export default function ProspectionForm() {
                   <AlertCircle className="w-5 h-5 text-[#EF4444] shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-[#EF4444]">
-                      Crédits insuffisants
+                      {t('prospection.insufficient_credits')}
                     </p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Solde : <span className="font-semibold tabular-nums">{credits}</span> · Requis : <span className="font-semibold tabular-nums">{launchCost}</span>
+                      {t('prospection.balance_required', { balance: credits, required: launchCost })}
                     </p>
                     <button
                       type="button"
@@ -610,7 +606,7 @@ export default function ProspectionForm() {
                       className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#FF7B54] hover:text-[#FF7B54]/80 transition-colors"
                     >
                       <Coins className="w-3.5 h-3.5" />
-                      Recharger mes crédits
+                      {t('prospection.recharge')}
                     </button>
                   </div>
                 </motion.div>
@@ -630,14 +626,14 @@ export default function ProspectionForm() {
                 {prospectionSubmitting ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Lancement en cours...
+                    {t('prospection.submitting')}
                   </>
                 ) : (
                   <>
                     <Send className="w-5 h-5" />
-                    <span>Lancer la campagne</span>
+                    <span>{t('prospection.submit')}</span>
                     {locationCount > 0 && (
-                      <span className="opacity-80 text-sm font-semibold">· {locationCount} zone{locationCount > 1 ? 's' : ''}</span>
+                      <span className="opacity-80 text-sm font-semibold">{tp(`prospection.submit_zones_${locationCount === 1 ? 'one' : 'other'}`, locationCount, { count: locationCount })}</span>
                     )}
                     {launchCost > 0 && (
                       <span
@@ -654,16 +650,15 @@ export default function ProspectionForm() {
               </button>
 
               <p className="text-xs text-center text-muted-foreground">
-                ProCible analysera votre produit et cherchera des clients qualifiés dans{' '}
                 {locationCount > 0
-                  ? `${locationCount} zone${locationCount > 1 ? 's' : ''}`
-                  : 'les zones sélectionnées'}
+                  ? t('prospection.final_helper_zones', { count: locationCount })
+                  : t('prospection.final_helper_single')}
                 {launchCost > 0 && (
                   <>
                     {' · '}
                     <span className="inline-flex items-center gap-1 text-[#FF7B54] font-medium">
                       <Zap className="w-3 h-3" />
-                      {launchCost} crédit{launchCost > 1 ? 's' : ''} déduits au lancement
+                      {t('prospection.credit_cost', { count: launchCost })}
                     </span>
                   </>
                 )}

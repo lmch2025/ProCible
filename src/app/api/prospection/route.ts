@@ -3,6 +3,7 @@ import { db, withDbFallback } from '@/lib/db'
 import { parseLocations, countLocations } from '@/lib/locations'
 import { deductCredits, getEffectiveCost, grantCredits } from '@/lib/credits-service'
 import { interpretCampaign, type CampaignInterpretation } from '@/lib/ai-service'
+import { getLocaleFromRequest, tServer } from '@/lib/i18n/server'
 
 /** Helper for safe refund. */
 async function grantCreditsSafe(userId: string, amount: number, note: string) {
@@ -94,20 +95,21 @@ function leadNameFromLocation(countryIso2: string, city: string, idx: number): s
 }
 
 export async function POST(request: Request) {
+  const locale = getLocaleFromRequest(request)
   try {
     const body = await request.json()
     const { productName, images, userId, locations } = body
 
     if (!productName || !productName.trim()) {
-      return NextResponse.json({ error: 'productName requis' }, { status: 400 })
+      return NextResponse.json({ error: tServer(locale, 'api.prospection_product_required') }, { status: 400 })
     }
     if (!locations || !String(locations).trim()) {
-      return NextResponse.json({ error: 'Au moins une ville ou un pays requis' }, { status: 400 })
+      return NextResponse.json({ error: tServer(locale, 'api.prospection_locations_required') }, { status: 400 })
     }
 
     const parsed = parseLocations(locations)
     if (parsed.length === 0) {
-      return NextResponse.json({ error: 'Localisations invalides' }, { status: 400 })
+      return NextResponse.json({ error: tServer(locale, 'api.prospection_locations_invalid') }, { status: 400 })
     }
 
     // Resolve userId — default to demo user
@@ -117,14 +119,14 @@ export async function POST(request: Request) {
         (client) => client.user.upsert({
           where: { phone: '+237600000000' },
           update: {},
-          create: { phone: '+237600000000', name: 'Utilisateur Demo', plan: 'starter', credits: 12, onboarded: true },
+          create: { phone: '+237600000000', name: tServer(locale, 'api.demo_user'), plan: 'starter', credits: 12, onboarded: true },
         }),
         null as any,
       )
       finalUserId = demoUser?.id
     }
     if (!finalUserId) {
-      return NextResponse.json({ error: 'Impossible de résoudre l\'utilisateur' }, { status: 500 })
+      return NextResponse.json({ error: tServer(locale, 'api.prospection_user_unresolved') }, { status: 500 })
     }
 
     // --- Credit check & deduction (atomic) ---
@@ -138,7 +140,7 @@ export async function POST(request: Request) {
       )
       if (balance && balance.credits < costInfo.cost) {
         return NextResponse.json({
-          error: `Crédits insuffisants. Cette action coûte ${costInfo.cost} crédit(s). Solde actuel : ${balance.credits}.`,
+          error: tServer(locale, 'api.prospection_insufficient_detail', { cost: costInfo.cost, balance: balance.credits }),
           code: 'insufficient_credits',
           required: costInfo.cost,
           balance: balance.credits,
@@ -151,13 +153,13 @@ export async function POST(request: Request) {
       action: 'prospection.launch',
       entityId: null, // will be set after campaign creation
       idempotencyKey,
-      note: `Campagne « ${productName.trim()} » (${countLocations(locations)} zone(s))`,
+      note: tServer(locale, 'api.note_campaign', { product: productName.trim(), zones: countLocations(locations) }),
     })
     if (!deduct.ok) {
       return NextResponse.json({
         error: deduct.reason === 'insufficient'
-          ? `Crédits insuffisants. Cette action coûte ${deduct.cost} crédit(s).`
-          : 'Échec de la déduction de crédits',
+          ? tServer(locale, 'api.prospection_insufficient_short', { cost: deduct.cost })
+          : tServer(locale, 'api.prospection_deduction_failed'),
         code: deduct.reason === 'insufficient' ? 'insufficient_credits' : 'deduct_failed',
         required: deduct.cost,
       }, { status: 402 })
@@ -187,9 +189,9 @@ export async function POST(request: Request) {
     if (!campaign) {
       // Refund the deduction since the campaign failed.
       if (deduct.cost > 0) {
-        await grantCreditsSafe(finalUserId, deduct.cost, `Remboursement : échec création campagne « ${productName.trim()} »`)
+        await grantCreditsSafe(finalUserId, deduct.cost, tServer(locale, 'api.note_campaign_refund', { product: productName.trim() }))
       }
-      return NextResponse.json({ error: 'Échec création campagne' }, { status: 500 })
+      return NextResponse.json({ error: tServer(locale, 'api.prospection_campaign_failed') }, { status: 500 })
     }
 
     // --- AI CAMPAIGN INTERPRETATION (free, included in every launch) ---
@@ -279,7 +281,7 @@ export async function POST(request: Request) {
         const noteParts: string[] = []
         if (data.notes) noteParts.push(data.notes)
         if (interpretation?.buyerPersona && priority > 0) {
-          noteParts.push(`Cible prioritaire : ${interpretation.buyerPersona}`)
+          noteParts.push(tServer(locale, 'api.note_priority_target', { target: interpretation.buyerPersona }))
         }
         const lead = await withDbFallback(
           (client) => client.lead.create({
@@ -340,16 +342,17 @@ export async function POST(request: Request) {
       null as any,
     )
 
-    // Create a notification for the user
+    // Create a notification for the user (localized with the request locale)
+    const targetsList = interpretation?.targetSegments.slice(0, 3).join(', ') || ''
     const notifMessage = interpretation
-      ? `${createdLeads.length} clients potentiels trouvés pour « ${productName.trim()} ». Cibles : ${interpretation.targetSegments.slice(0, 3).join(', ')}${interpretation.targetSegments.length > 3 ? '…' : ''}.`
-      : `${createdLeads.length} nouveaux clients potentiels trouvés pour « ${productName.trim()} » (${countLocations(locations)} zone(s)).`
+      ? tServer(locale, 'notifications_db.campaign_launched_message', { count: createdLeads.length, product: productName.trim(), targets: targetsList + (interpretation.targetSegments.length > 3 ? '…' : '') })
+      : tServer(locale, 'notifications_db.campaign_launched_message_short', { count: createdLeads.length, product: productName.trim(), zones: countLocations(locations) })
     await withDbFallback(
       (client) => client.notification.create({
         data: {
           userId: finalUserId,
           type: 'new_leads',
-          title: 'Nouvelle campagne lancée',
+          title: tServer(locale, 'notifications_db.campaign_launched_title'),
           message: notifMessage,
           read: false,
         },
@@ -380,7 +383,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Prospection error:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Erreur lors du lancement de la campagne' },
+      { error: error instanceof Error ? error.message : tServer(getLocaleFromRequest(request), 'api.prospection_launch_error') },
       { status: 500 },
     )
   }

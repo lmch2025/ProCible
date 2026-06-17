@@ -7,20 +7,21 @@ import { useState, useEffect } from 'react'
 import ConfettiEffect from './ConfettiEffect'
 import { toast } from 'sonner'
 import { parseStoredSuggestion, modelDisplayName, modelBadgeColor } from '@/lib/ai-content'
+import { useI18n } from '@/lib/i18n'
 
-const sourceConfig: Record<string, { bg: string; text: string; label: string }> = {
-  maps: { bg: 'bg-[#4CAF50]', text: 'text-white', label: 'Google Maps' },
-  facebook: { bg: 'bg-[#1877F2]', text: 'text-white', label: 'Facebook' },
-  instagram: { bg: 'bg-[#E4405F]', text: 'text-white', label: 'Instagram' },
-  linkedin: { bg: 'bg-[#0A66C2]', text: 'text-white', label: 'LinkedIn' },
+const sourceConfig: Record<string, { bg: string; text: string; labelKey: string }> = {
+  maps: { bg: 'bg-[#4CAF50]', text: 'text-white', labelKey: 'lead_detail.sources.maps' },
+  facebook: { bg: 'bg-[#1877F2]', text: 'text-white', labelKey: 'lead_detail.sources.facebook' },
+  instagram: { bg: 'bg-[#E4405F]', text: 'text-white', labelKey: 'lead_detail.sources.instagram' },
+  linkedin: { bg: 'bg-[#0A66C2]', text: 'text-white', labelKey: 'lead_detail.sources.linkedin' },
 }
 
-const contactTypeIcons: Record<string, { icon: typeof Phone; color: string; label: string }> = {
-  appel: { icon: Phone, color: 'text-[#2EC4B6]', label: 'Appel' },
-  whatsapp: { icon: MessageCircle, color: 'text-[#25D366]', label: 'WhatsApp' },
-  email: { icon: Send, color: 'text-[#6C3FA9]', label: 'Email' },
-  visite: { icon: MapPin, color: 'text-[#FF7B54]', label: 'Visite' },
-  note: { icon: FileText, color: 'text-[#FFB347]', label: 'Note' },
+const contactTypeIcons: Record<string, { icon: typeof Phone; color: string; labelKey: string }> = {
+  appel: { icon: Phone, color: 'text-[#2EC4B6]', labelKey: 'lead_detail.contact_types.appel' },
+  whatsapp: { icon: MessageCircle, color: 'text-[#25D366]', labelKey: 'lead_detail.contact_types.whatsapp' },
+  email: { icon: Send, color: 'text-[#6C3FA9]', labelKey: 'lead_detail.contact_types.email' },
+  visite: { icon: MapPin, color: 'text-[#FF7B54]', labelKey: 'lead_detail.contact_types.visite' },
+  note: { icon: FileText, color: 'text-[#FFB347]', labelKey: 'lead_detail.contact_types.note' },
 }
 
 // Follow-up plan types — mirror the AI service contract
@@ -40,16 +41,17 @@ interface FollowUpPlan {
   createdAt: string
 }
 
-const channelConfig: Record<FollowUpStage['channel'], { icon: typeof Phone; color: string; bg: string; label: string }> = {
-  whatsapp: { icon: MessageCircle, color: 'text-[#25D366]', bg: 'bg-[#25D366]/10', label: 'WhatsApp' },
-  appel: { icon: Phone, color: 'text-[#2EC4B6]', bg: 'bg-[#2EC4B6]/10', label: 'Appel' },
-  email: { icon: Send, color: 'text-[#6C3FA9]', bg: 'bg-[#6C3FA9]/10', label: 'Email' },
-  visite: { icon: MapPin, color: 'text-[#FF7B54]', bg: 'bg-[#FF7B54]/10', label: 'Visite' },
-  sms: { icon: MessageCircle, color: 'text-[#FFB347]', bg: 'bg-[#FFB347]/10', label: 'SMS' },
+const channelConfig: Record<FollowUpStage['channel'], { icon: typeof Phone; color: string; bg: string; labelKey: string }> = {
+  whatsapp: { icon: MessageCircle, color: 'text-[#25D366]', bg: 'bg-[#25D366]/10', labelKey: 'lead_detail.channels.whatsapp' },
+  appel: { icon: Phone, color: 'text-[#2EC4B6]', bg: 'bg-[#2EC4B6]/10', labelKey: 'lead_detail.channels.appel' },
+  email: { icon: Send, color: 'text-[#6C3FA9]', bg: 'bg-[#6C3FA9]/10', labelKey: 'lead_detail.channels.email' },
+  visite: { icon: MapPin, color: 'text-[#FF7B54]', bg: 'bg-[#FF7B54]/10', labelKey: 'lead_detail.channels.visite' },
+  sms: { icon: MessageCircle, color: 'text-[#FFB347]', bg: 'bg-[#FFB347]/10', labelKey: 'lead_detail.channels.sms' },
 }
 
 export default function LeadDetail() {
   const { leads, selectedLeadId, updateLeadStage, goBack, decrementCredits, aiDraft, aiDraftLoading, aiModel, setAiDraft, setAiDraftLoading, setAiModel, logContact, credits, setCredits } = useProcibleStore()
+  const { t, tp, locale } = useI18n()
   const [showConfetti, setShowConfetti] = useState(false)
   const [copied, setCopied] = useState(false)
   const [showStagePicker, setShowStagePicker] = useState(false)
@@ -74,7 +76,7 @@ export default function LeadDetail() {
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(`/api/ai/follow-up-plan?leadId=${lead.id}`)
+        const res = await fetch(`/api/ai/follow-up-plan?leadId=${lead.id}`, { headers: { 'x-locale': locale } })
         if (!res.ok) return
         const data = await res.json()
         if (!cancelled && data.hasPlan && data.plan) {
@@ -93,7 +95,7 @@ export default function LeadDetail() {
     try {
       const res = await fetch('/api/ai/follow-up-plan', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-locale': locale },
         body: JSON.stringify({ leadId: lead.id }),
       })
       if (res.ok) {
@@ -101,21 +103,21 @@ export default function LeadDetail() {
         if (data.plan) setPlan(data.plan)
         if (typeof data.balanceAfter === 'number') setCredits(data.balanceAfter)
         toast.success(
-          `Plan de suivi généré ! ${data.plan?.stages.length || 0} étapes programmées.`,
-          { description: data.creditsUsed > 0 ? `−${data.creditsUsed} crédits${data.creditsFreeQuotaUsed ? ' (quota gratuit)' : ''}` : 'Gratuit (quota)' },
+          t('lead_detail.toast_plan_generated', { count: data.plan?.stages.length || 0 }),
+          { description: data.creditsUsed > 0 ? t('lead_detail.toast_free_quota', { count: data.creditsUsed }) : t('lead_detail.toast_quota_only') },
         )
       } else if (res.status === 402) {
         const err = await res.json().catch(() => ({}))
-        toast.error(err.error || 'Crédits insuffisants', {
-          description: err.balance !== undefined ? `Solde : ${err.balance} · Requis : ${err.required}` : undefined,
+        toast.error(err.error || t('lead_detail.toast_insufficient'), {
+          description: err.balance !== undefined ? t('lead_detail.toast_balance_required', { balance: err.balance, required: err.required }) : undefined,
           duration: 6000,
         })
       } else {
         const err = await res.json().catch(() => ({}))
-        toast.error(err.error || 'Échec génération du plan')
+        toast.error(err.error || t('lead_detail.toast_plan_failed'))
       }
     } catch {
-      toast.error('Erreur de connexion')
+      toast.error(t('lead_detail.toast_connection_error'))
     }
     setPlanLoading(false)
   }
@@ -124,7 +126,7 @@ export default function LeadDetail() {
     navigator.clipboard.writeText(stage.script)
     setCopiedStage(stage.step)
     setTimeout(() => setCopiedStage(null), 2000)
-    toast.success('Script copié dans le presse-papier')
+    toast.success(t('lead_detail.toast_script_copied'))
   }
 
   const handleExecuteStage = (stage: FollowUpStage) => {
@@ -144,13 +146,13 @@ export default function LeadDetail() {
       const body = encodeURIComponent(stage.script)
       window.open(`mailto:${lead.email}?subject=${subject}&body=${body}`, '_blank')
     }
-    toast.success(`Étape ${stage.step} marquée comme effectuée`)
+    toast.success(t('lead_detail.toast_step_done', { count: stage.step }))
   }
 
   if (!lead) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">Client introuvable</p>
+        <p className="text-muted-foreground">{t('lead_detail.not_found')}</p>
       </div>
     )
   }
@@ -169,7 +171,7 @@ export default function LeadDetail() {
     try {
       const res = await fetch('/api/ai/draft', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-locale': locale },
         body: JSON.stringify({ leadId: lead.id, channel }),
       })
       if (res.ok) {
@@ -180,9 +182,9 @@ export default function LeadDetail() {
         setAiModel(data.modelId || data.model || 'local-fallback')
       } else {
         const fallbacks: Record<string, string> = {
-          whatsapp: `Bonjour ${lead.name} ! Je me permets de vous contacter suite à la découverte de votre activité${lead.business ? ` "${lead.business}"` : ''}. Seriez-vous disponible pour un échange rapide cette semaine ?`,
-          appel: `Bonjour ${lead.name}, je vous appelle concernant votre activité${lead.business ? ` "${lead.business}"` : ''}. J'aimerais vous présenter une opportunité de collaboration. Quand seriez-vous disponible ?`,
-          email: `Objet : Opportunité de collaboration\n\nBonjour ${lead.name},\n\nJ'ai découvert votre activité${lead.business ? ` "${lead.business}"` : ''} et je pense qu'il y a des synergies possibles.\n\nSeriez-vous disponible pour un échange ?\n\nCordialement`,
+          whatsapp: t('lead_detail.fallback_messages.whatsapp', { name: lead.name, business: lead.business || '' }),
+          appel: t('lead_detail.fallback_messages.appel', { name: lead.name, business: lead.business || '' }),
+          email: t('lead_detail.fallback_messages.email', { name: lead.name, business: lead.business || '' }),
         }
         setAiDraft(fallbacks[channel])
         setAiModel('local-fallback')
@@ -222,17 +224,18 @@ export default function LeadDetail() {
     }
     fetch('/api/crm/leads', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-locale': locale },
       body: JSON.stringify({ id: lead.id, stage }),
     }).catch(() => {})
     setShowStagePicker(false)
   }
 
   const handleSpeak = () => {
+    const stageLabel = t(stageConfig.labelKey)
     const utterance = new SpeechSynthesisUtterance(
-      `${lead.name}. ${lead.business || ''}. Secteur: ${lead.sector || ''}. Ville: ${lead.city || ''}. Étape: ${stageConfig.label}. Score: ${lead.score} sur 100.`
+      `${lead.name}. ${lead.business || ''}. ${t('lead_detail.sector_label')} ${lead.sector || ''}. ${t('lead_detail.city_label')} ${lead.city || ''}. ${t('lead_detail.stage_label')} ${stageLabel}. ${t('lead_detail.score_label')} ${lead.score} ${t('lead_detail.score_out_of')}.`
     )
-    utterance.lang = 'fr-FR'
+    utterance.lang = locale === 'en' ? 'en-US' : 'fr-FR'
     speechSynthesis.speak(utterance)
   }
 
@@ -247,7 +250,7 @@ export default function LeadDetail() {
         <button onClick={goBack} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
           <ArrowLeft className="w-5 h-5 text-secondary-foreground" />
         </button>
-        <h1 className="text-lg font-bold flex-1">Détail du client</h1>
+        <h1 className="text-lg font-bold flex-1">{t('lead_detail.detail_title')}</h1>
         <button onClick={handleSpeak} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
           <Volume2 className="w-4 h-4 text-secondary-foreground" />
         </button>
@@ -287,7 +290,7 @@ export default function LeadDetail() {
               >
                 <span className="flex items-center gap-2">
                   <span>{stageConfig.icon}</span>
-                  {stageConfig.label}
+                  {t(stageConfig.labelKey)}
                 </span>
                 <ChevronDown className={`w-4 h-4 transition-transform ${showStagePicker ? 'rotate-180' : ''}`} />
               </button>
@@ -311,7 +314,7 @@ export default function LeadDetail() {
                           }`}
                         >
                           <span>{config.icon}</span>
-                          <span className={config.color}>{config.label}</span>
+                          <span className={config.color}>{t(config.labelKey)}</span>
                         </button>
                       )
                     })}
@@ -321,14 +324,14 @@ export default function LeadDetail() {
             </div>
 
             <div className="space-y-2 text-sm">
-              {lead.sector && <p className="text-muted-foreground">Secteur : <span className="text-foreground font-medium">{lead.sector}</span></p>}
+              {lead.sector && <p className="text-muted-foreground">{t('lead_detail.sector_label')} <span className="text-foreground font-medium">{lead.sector}</span></p>}
               {lead.city && <p className="text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{lead.city}</p>}
               {lead.phone && <p className="text-muted-foreground flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{lead.phone}</p>}
               {daysSince !== null && (
                 <p className="text-muted-foreground flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
-                  Dernier contact : {daysSince === 0 ? "Aujourd'hui" : daysSince === 1 ? 'Hier' : `il y a ${daysSince}j`}
-                  · {lead.contactCount} contact{lead.contactCount > 1 ? 's' : ''}
+                  {t('lead_detail.last_contact')} {daysSince === 0 ? t('leads.today') : daysSince === 1 ? t('leads.yesterday') : t('leads.days_ago', { count: daysSince })}
+                  · {tp(`lead_detail.contacts_${lead.contactCount === 1 ? 'one' : 'other'}`, lead.contactCount, { count: lead.contactCount })}
                 </p>
               )}
             </div>
@@ -345,14 +348,14 @@ export default function LeadDetail() {
                 <div className="mt-4 p-3 rounded-xl bg-[#6C3FA9]/5 border border-[#6C3FA9]/10">
                   <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                     <Lightbulb className="w-3.5 h-3.5 text-[#6C3FA9]" />
-                    <span className="text-xs font-semibold text-[#6C3FA9]">Conseil IA</span>
+                    <span className="text-xs font-semibold text-[#6C3FA9]">{t('lead_detail.ai_advice')}</span>
                     {showBadge && (
                       <span
                         className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(parsed.modelId)}`}
-                        title={`Modèle IA : ${display}`}
+                        title={t('lead_detail.ai_model_label', { model: display })}
                       >
                         <Cpu className="w-2.5 h-2.5" />
-                        Proposé par {display}
+                        {t('lead_detail.proposed_by', { model: display })}
                       </span>
                     )}
                   </div>
@@ -374,7 +377,7 @@ export default function LeadDetail() {
             style={{ minHeight: 48 }}
           >
             <Zap className="w-4 h-4" />
-            Message IA
+            {t('lead_detail.ai_message_btn')}
           </button>
           <button
             onClick={() => handleGenerateDraft('appel')}
@@ -383,7 +386,7 @@ export default function LeadDetail() {
             style={{ minHeight: 48 }}
           >
             <Zap className="w-4 h-4" />
-            Script appel
+            {t('lead_detail.call_script_btn')}
           </button>
         </div>
 
@@ -394,7 +397,7 @@ export default function LeadDetail() {
             style={{ minHeight: 56 }}
           >
             <Phone className="w-5 h-5" />
-            Appeler
+            {t('lead_detail.call_btn')}
           </button>
           <button
             onClick={() => handleLogAndAction('whatsapp')}
@@ -402,7 +405,7 @@ export default function LeadDetail() {
             style={{ minHeight: 56 }}
           >
             <MessageCircle className="w-5 h-5" />
-            WhatsApp
+            {t('lead_detail.whatsapp_btn')}
           </button>
         </div>
       </motion.div>
@@ -421,15 +424,15 @@ export default function LeadDetail() {
                 <div className="flex items-center gap-2">
                   <Lightbulb className="w-4 h-4 text-[#6C3FA9]" />
                   <span className="text-sm font-semibold text-[#6C3FA9]">
-                    Brouillon IA {aiDraftLoading ? '...' : `(${aiChannel})`}
+                    {t('lead_detail.ai_draft', { count: aiChannel })}
                   </span>
                   {aiModel && !aiDraftLoading && (
                     <span
                       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(aiModel)}`}
-                      title={`Modèle IA : ${modelDisplayName(aiModel)}`}
+                      title={t('lead_detail.ai_model_label', { model: modelDisplayName(aiModel) })}
                     >
                       <Cpu className="w-2.5 h-2.5" />
-                      Proposé par {modelDisplayName(aiModel)}
+                      {t('lead_detail.proposed_by', { model: modelDisplayName(aiModel) })}
                     </span>
                   )}
                 </div>
@@ -445,7 +448,7 @@ export default function LeadDetail() {
                     onClick={() => setShowAiDraft(false)}
                     className="text-xs text-muted-foreground"
                   >
-                    Fermer
+                    {t('lead_detail.close')}
                   </button>
                 </div>
               </div>
@@ -470,15 +473,15 @@ export default function LeadDetail() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[#FF7B54]" />
-            <h3 className="text-sm font-semibold text-muted-foreground">Plan de suivi IA</h3>
+            <h3 className="text-sm font-semibold text-muted-foreground">{t('lead_detail.ai_followup_plan')}</h3>
           </div>
           {plan && (
             <span
               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${modelBadgeColor(plan.model)}`}
-              title={`Modèle IA : ${modelDisplayName(plan.model)}`}
+              title={t('lead_detail.ai_model_label', { model: modelDisplayName(plan.model) })}
             >
               <Cpu className="w-2.5 h-2.5" />
-              {plan.stages.length} étapes · Proposé par {modelDisplayName(plan.model)}
+              {t('lead_detail.plan_steps_count', { count: plan.stages.length, model: modelDisplayName(plan.model) })}
             </span>
           )}
         </div>
@@ -495,10 +498,10 @@ export default function LeadDetail() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground">
-                  Planifiez le suivi de ce lead
+                  {t('lead_detail.plan_intro_title')}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  L'IA génère un plan hiérarchisé en 4-5 étapes (J+1, J+3, J+7, J+14, J+30) avec scripts prêts à envoyer, conseils tactiques, et notifications intelligentes programmées automatiquement.
+                  {t('lead_detail.plan_intro_desc')}
                 </p>
                 <button
                   onClick={handleGeneratePlan}
@@ -508,12 +511,12 @@ export default function LeadDetail() {
                   {planLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      Génération en cours...
+                      {t('lead_detail.generating_plan')}
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4" />
-                      Générer le plan
+                      {t('lead_detail.generate_plan')}
                       <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/15 text-[11px]">
                         <Coins className="w-3 h-3" />
                         3
@@ -523,7 +526,7 @@ export default function LeadDetail() {
                 </button>
                 {credits < 3 && (
                   <p className="text-[11px] text-[#EF4444] mt-2 text-center">
-                    Solde insuffisant ({credits} crédits) · 1 gratuit/jour
+                    {t('lead_detail.insufficient_balance', { count: credits })}
                   </p>
                 )}
               </div>
@@ -539,13 +542,13 @@ export default function LeadDetail() {
             <div className="bg-[#6C3FA9]/5 rounded-2xl border border-[#6C3FA9]/20 p-3.5">
               <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                 <Lightbulb className="w-3.5 h-3.5 text-[#6C3FA9]" />
-                <span className="text-xs font-semibold text-[#6C3FA9]">Stratégie</span>
+                <span className="text-xs font-semibold text-[#6C3FA9]">{t('lead_detail.strategy')}</span>
                 <span
                   className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(plan.model)}`}
-                  title={`Modèle IA : ${modelDisplayName(plan.model)}`}
+                  title={t('lead_detail.ai_model_label', { model: modelDisplayName(plan.model) })}
                 >
                   <Cpu className="w-2.5 h-2.5" />
-                  Proposé par {modelDisplayName(plan.model)}
+                  {t('lead_detail.proposed_by', { model: modelDisplayName(plan.model) })}
                 </span>
               </div>
               <p className="text-xs text-foreground/80 leading-relaxed">{plan.strategy}</p>
@@ -597,11 +600,11 @@ export default function LeadDetail() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-foreground">Étape {stage.step}</span>
+                            <span className="text-xs font-bold text-foreground">{t('lead_detail.step_label', { count: stage.step })}</span>
                             <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
-                              J+{stage.dayOffset}
+                              {t('lead_detail.day_label', { count: stage.dayOffset })}
                             </span>
-                            <span className={`text-[10px] font-medium ${chCfg.color}`}>{chCfg.label}</span>
+                            <span className={`text-[10px] font-medium ${chCfg.color}`}>{t(chCfg.labelKey)}</span>
                             {isCompleted && (
                               <Check className="w-3.5 h-3.5 text-[#4CAF50]" />
                             )}
@@ -629,7 +632,7 @@ export default function LeadDetail() {
                               {/* Script preview */}
                               <div className="bg-secondary/50 rounded-xl p-2.5">
                                 <div className="flex items-center justify-between mb-1.5">
-                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Script prêt</span>
+                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{t('lead_detail.script_ready')}</span>
                                   <button
                                     onClick={() => handleCopyStageScript(stage)}
                                     className="text-[10px] text-[#FF7B54] font-medium flex items-center gap-1 hover:text-[#FF7B54]/70 transition-colors"
@@ -637,12 +640,12 @@ export default function LeadDetail() {
                                     {copiedStage === stage.step ? (
                                       <>
                                         <Check className="w-3 h-3" />
-                                        Copié
+                                        {t('lead_detail.copied')}
                                       </>
                                     ) : (
                                       <>
                                         <Copy className="w-3 h-3" />
-                                        Copier
+                                        {t('lead_detail.copy')}
                                       </>
                                     )}
                                   </button>
@@ -653,7 +656,7 @@ export default function LeadDetail() {
                               {/* Tips */}
                               {stage.tips.length > 0 && (
                                 <div>
-                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Conseils</p>
+                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">{t('lead_detail.advice')}</p>
                                   <ul className="space-y-1">
                                     {stage.tips.map((tip, i) => (
                                       <li key={i} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
@@ -672,12 +675,12 @@ export default function LeadDetail() {
                                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#FF7B54] to-[#FFB347] text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
                                 >
                                   <ChannelIcon className="w-3.5 h-3.5" />
-                                  {stage.channel === 'appel' ? 'Appeler maintenant' : stage.channel === 'whatsapp' || stage.channel === 'sms' ? 'Envoyer sur WhatsApp' : stage.channel === 'email' ? 'Envoyer l\'email' : 'Marquer comme fait'}
+                                  {stage.channel === 'appel' ? t('lead_detail.call_now') : stage.channel === 'whatsapp' || stage.channel === 'sms' ? t('lead_detail.send_whatsapp') : stage.channel === 'email' ? t('lead_detail.send_email') : t('lead_detail.mark_done')}
                                 </button>
                               )}
                               {isCompleted && (
                                 <div className="text-center text-[11px] text-[#4CAF50] font-medium py-1">
-                                  ✓ Étape effectuée
+                                  {t('lead_detail.step_done')}
                                 </div>
                               )}
                             </div>
@@ -699,12 +702,12 @@ export default function LeadDetail() {
               {planLoading ? (
                 <>
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Régénération...
+                  {t('lead_detail.regenerating')}
                 </>
               ) : (
                 <>
                   <Zap className="w-3 h-3" />
-                  Régénérer le plan
+                  {t('lead_detail.regenerate_plan')}
                 </>
               )}
             </button>
@@ -714,9 +717,9 @@ export default function LeadDetail() {
 
       {/* Contact History Timeline */}
       <div className="px-5 mt-4">
-        <h3 className="text-sm font-semibold text-muted-foreground mb-3">Historique ({contacts.length})</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground mb-3">{t('lead_detail.history', { count: contacts.length })}</h3>
         {contacts.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center py-4">Aucun contact enregistré</p>
+          <p className="text-xs text-muted-foreground text-center py-4">{t('lead_detail.no_contacts')}</p>
         ) : (
           <div className="space-y-2">
             {contacts.slice(0, 5).map((contact) => {
@@ -729,14 +732,14 @@ export default function LeadDetail() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold">{typeConfig.label}</span>
+                      <span className="text-xs font-semibold">{t(typeConfig.labelKey)}</span>
                       {contact.aiGenerated && (
                         <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#6C3FA9]/10 text-[#6C3FA9]">IA</span>
                       )}
                     </div>
                     {contact.content && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{contact.content}</p>}
                     <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                      {new Date(contact.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {new Date(contact.createdAt).toLocaleDateString(locale === 'en' ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                 </div>

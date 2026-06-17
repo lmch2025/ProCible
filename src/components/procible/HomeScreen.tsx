@@ -4,9 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore, STAGE_ORDER, STAGE_CONFIG, type LeadStage } from '@/store/procible-store'
 import { Coins, ArrowRight, Moon, TrendingUp, AlertTriangle, RotateCcw, Trophy, Megaphone, MapPin, Plus } from 'lucide-react'
 import ProspectionCTA from './ProspectionCTA'
+import { useI18n } from '@/lib/i18n'
 
 export default function HomeScreen() {
   const { leads, newLeadsCount, navigateTo, plan, credits, campaigns } = useProcibleStore()
+  const { t, tp } = useI18n()
 
   const nouveaux = leads.filter(l => l.stage === 'nouveau').length
   const enDiscussion = leads.filter(l => l.stage === 'en_discussion').length
@@ -32,8 +34,8 @@ export default function HomeScreen() {
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-xl px-5 pt-6 pb-3">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-muted-foreground">Bonjour</p>
-            <h1 className="text-2xl font-bold procible-gradient-text">ProCible</h1>
+            <p className="text-sm text-muted-foreground">{t('home.greeting')}</p>
+            <h1 className="text-2xl font-bold procible-gradient-text">{t('home.brand')}</h1>
           </div>
           <div className="relative">
             {/* Pulsing low-credit halo — only when credits ≤ 2 */}
@@ -48,7 +50,7 @@ export default function HomeScreen() {
             <button
               type="button"
               onClick={() => navigateTo('credits')}
-              aria-label={isLowCredits ? `Crédits faibles : ${credits}. Acheter des crédits` : 'Acheter des crédits'}
+              aria-label={isLowCredits ? tp(`home.low_credit_aria_${credits === 1 ? 'one' : 'other'}`, credits, { count: credits }) : t('home.buy_credits')}
               className={`group relative flex items-center gap-2 rounded-full pl-2.5 pr-3 py-1.5 transition-all active:scale-95 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF7B54]/40 ${
                 isLowCredits
                   ? 'bg-[#EF4444]/10 hover:bg-[#EF4444]/15 ring-1 ring-[#EF4444]/40'
@@ -60,7 +62,7 @@ export default function HomeScreen() {
                 <span className="absolute -inset-1 rounded-full bg-[#FF7B54]/30 opacity-0 group-hover:opacity-100 blur-md transition-opacity" />
               </span>
               <span className={`text-sm font-semibold tabular-nums ${isLowCredits ? 'text-[#EF4444]' : 'text-secondary-foreground'}`}>{credits}</span>
-              <span className="text-xs text-muted-foreground hidden xs:inline">crédits</span>
+              <span className="text-xs text-muted-foreground hidden xs:inline">{t('home.credits')}</span>
               <Plus className={`w-3.5 h-3.5 opacity-0 -ml-1 group-hover:opacity-100 group-hover:ml-0 transition-all ${isLowCredits ? 'text-[#EF4444]' : 'text-[#FF7B54]'}`} />
 
               {/* Small pulsing badge dot at top-right when low */}
@@ -99,10 +101,10 @@ export default function HomeScreen() {
               </motion.span>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-semibold text-[#EF4444]">
-                  Crédits faibles — il ne vous reste que {credits} crédit{credits > 1 ? 's' : ''}
+                  {t('home.low_credit_title')} — {tp(`home.low_credit_message_${credits === 1 ? 'one' : 'other'}`, credits, { count: credits })}
                 </p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Rechargez pour lancer de nouvelles campagnes de prospection
+                  {t('home.low_credit_hint')}
                 </p>
               </div>
               <ArrowRight className="w-4 h-4 text-[#EF4444] shrink-0" />
@@ -122,15 +124,15 @@ export default function HomeScreen() {
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-3">
               <Moon className="w-5 h-5 text-white/80" />
-              <span className="text-white/80 text-sm">Cette nuit</span>
+              <span className="text-white/80 text-sm">{t('home.last_night')}</span>
             </div>
             <motion.div className="mb-4" animate={{ scale: [1, 1.02, 1] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
               <span className="text-6xl font-bold text-white">{nouveaux || newLeadsCount || 0}</span>
-              <span className="text-xl text-white/80 ml-2">nouveaux</span>
+              <span className="text-xl text-white/80 ml-2">{tp('home.new_other', nouveaux || newLeadsCount || 0)}</span>
             </motion.div>
-            <p className="text-white/80 text-lg mb-5">clients trouvés par ProCible</p>
+            <p className="text-white/80 text-lg mb-5">{t('home.leads_found')}</p>
             <button onClick={() => navigateTo('leads')} className="w-full py-4 bg-white rounded-2xl text-[#FF7B54] font-bold text-lg flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]">
-              Voir mes clients
+              {t('home.view_leads')}
               <ArrowRight className="w-5 h-5" />
             </button>
           </div>
@@ -139,7 +141,7 @@ export default function HomeScreen() {
         {/* Active campaigns */}
         {activeCampaigns.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-5">
-            <h2 className="text-base font-semibold mb-3">Campagnes actives</h2>
+            <h2 className="text-base font-semibold mb-3">{t('home.active_campaigns')}</h2>
             <div className="space-y-2">
               {activeCampaigns.slice(0, 2).map((camp) => (
                 <div key={camp.id} className="bg-card rounded-2xl p-4 border border-border/50 shadow-sm flex items-center gap-3">
@@ -149,10 +151,10 @@ export default function HomeScreen() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm truncate">{camp.productName}</p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />{camp.city} · {camp.leadsFound} clients
+                      <MapPin className="w-3 h-3" />{camp.city} · {camp.leadsFound} {tp('home.clients_other', camp.leadsFound)}
                     </p>
                   </div>
-                  <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-[#4CAF50]/10 text-[#4CAF50]">Active</span>
+                  <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-[#4CAF50]/10 text-[#4CAF50]">{t('home.active')}</span>
                 </div>
               ))}
             </div>
@@ -167,8 +169,8 @@ export default function HomeScreen() {
                 <RotateCcw className="w-5 h-5 text-[#FFB347]" />
               </div>
               <div className="flex-1 text-left">
-                <p className="font-semibold text-sm text-[#FFB347]">Relances à faire</p>
-                <p className="text-xs text-muted-foreground">{aRelancer} à relancer · {toFollowUp} suivis en attente</p>
+                <p className="font-semibold text-sm text-[#FFB347]">{t('home.followups')}</p>
+                <p className="text-xs text-muted-foreground">{aRelancer} {t('home.to_followup')} · {toFollowUp} {t('home.pending')}</p>
               </div>
               <ArrowRight className="w-4 h-4 text-[#FFB347]" />
             </button>
@@ -177,7 +179,7 @@ export default function HomeScreen() {
 
         {/* CRM Pipeline stats */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="mb-5">
-          <h2 className="text-base font-semibold mb-3">Pipeline</h2>
+          <h2 className="text-base font-semibold mb-3">{t('home.pipeline')}</h2>
           <div className="grid grid-cols-3 gap-2">
             {STAGE_ORDER.map((stage) => {
               const config = STAGE_CONFIG[stage]
@@ -193,7 +195,7 @@ export default function HomeScreen() {
                 >
                   <span className={`text-lg ${config.color}`}>{config.icon}</span>
                   <p className={`text-xl font-bold mt-1 ${config.color}`}>{count}</p>
-                  <p className="text-[10px] text-muted-foreground">{config.label}</p>
+                  <p className="text-[10px] text-muted-foreground">{t(config.labelKey)}</p>
                 </button>
               )
             })}
@@ -209,7 +211,7 @@ export default function HomeScreen() {
               </div>
             </div>
             <p className="text-2xl font-bold">{gagnes}</p>
-            <p className="text-xs text-muted-foreground">Clients gagnés</p>
+            <p className="text-xs text-muted-foreground">{t('home.won_clients')}</p>
           </div>
           <div className="bg-card rounded-2xl p-4 border border-border/50 shadow-sm">
             <div className="flex items-center gap-2 mb-2">
@@ -218,14 +220,14 @@ export default function HomeScreen() {
               </div>
             </div>
             <p className="text-2xl font-bold">{avgScore}</p>
-            <p className="text-xs text-muted-foreground">Score moyen</p>
+            <p className="text-xs text-muted-foreground">{t('home.avg_score')}</p>
           </div>
         </motion.div>
 
         {/* Recent leads */}
         {leads.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <h2 className="text-base font-semibold mb-3">Actions récentes</h2>
+            <h2 className="text-base font-semibold mb-3">{t('home.recent_actions')}</h2>
             <div className="space-y-2">
               {leads.filter(l => l.stage !== 'perdu').slice(0, 4).map((lead) => (
                 <button
@@ -241,7 +243,7 @@ export default function HomeScreen() {
                   </div>
                   <div className="flex-1 text-left min-w-0">
                     <p className="font-semibold text-sm truncate">{lead.name}</p>
-                    <p className="text-xs text-muted-foreground truncate">{lead.business || ''} · {STAGE_CONFIG[lead.stage].label}</p>
+                    <p className="text-xs text-muted-foreground truncate">{lead.business || ''} · {t(STAGE_CONFIG[lead.stage].labelKey)}</p>
                   </div>
                   <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${STAGE_CONFIG[lead.stage].bg} ${STAGE_CONFIG[lead.stage].color}`}>
                     {lead.score}

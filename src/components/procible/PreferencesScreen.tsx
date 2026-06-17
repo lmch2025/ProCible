@@ -4,39 +4,41 @@ import { motion } from 'framer-motion'
 import { useProcibleStore, type UserPreference } from '@/store/procible-store'
 import { ArrowLeft, Store, MapPin, Building2, Utensils, Scissors, Wrench, Car, Monitor, Shirt, Heart, Dumbbell, GraduationCap, Briefcase } from 'lucide-react'
 import { useState } from 'react'
+import { useI18n } from '@/lib/i18n'
 
 const sectors = [
-  { id: 'restauration', label: 'Restauration', icon: Utensils, color: '#FF7B54' },
-  { id: 'commerce', label: 'Commerce', icon: Store, color: '#6C3FA9' },
-  { id: 'beaute', label: 'Beauté', icon: Scissors, color: '#E4405F' },
-  { id: 'technologie', label: 'Tech', icon: Monitor, color: '#2EC4B6' },
-  { id: 'mode', label: 'Mode', icon: Shirt, color: '#FFB347' },
-  { id: 'automobile', label: 'Auto', icon: Car, color: '#0A66C2' },
-  { id: 'sante', label: 'Santé', icon: Heart, color: '#4CAF50' },
-  { id: 'services', label: 'Services', icon: Wrench, color: '#9B6FD0' },
-  { id: 'sport', label: 'Sport', icon: Dumbbell, color: '#FF7B54' },
-  { id: 'education', label: 'Éducation', icon: GraduationCap, color: '#6C3FA9' },
-  { id: 'btp', label: 'BTP', icon: Building2, color: '#2EC4B6' },
-  { id: 'finance', label: 'Finance', icon: Briefcase, color: '#FFB347' },
+  { id: 'restauration', labelKey: 'preferences.sectors_list.restauration', icon: Utensils, color: '#FF7B54' },
+  { id: 'commerce', labelKey: 'preferences.sectors_list.commerce', icon: Store, color: '#6C3FA9' },
+  { id: 'beaute', labelKey: 'preferences.sectors_list.beaute', icon: Scissors, color: '#E4405F' },
+  { id: 'technologie', labelKey: 'preferences.sectors_list.tech', icon: Monitor, color: '#2EC4B6' },
+  { id: 'mode', labelKey: 'preferences.sectors_list.mode', icon: Shirt, color: '#FFB347' },
+  { id: 'automobile', labelKey: 'preferences.sectors_list.auto', icon: Car, color: '#0A66C2' },
+  { id: 'sante', labelKey: 'preferences.sectors_list.sante', icon: Heart, color: '#4CAF50' },
+  { id: 'services', labelKey: 'preferences.sectors_list.services', icon: Wrench, color: '#9B6FD0' },
+  { id: 'sport', labelKey: 'preferences.sectors_list.sport', icon: Dumbbell, color: '#FF7B54' },
+  { id: 'education', labelKey: 'preferences.sectors_list.education', icon: GraduationCap, color: '#6C3FA9' },
+  { id: 'btp', labelKey: 'preferences.sectors_list.btp', icon: Building2, color: '#2EC4B6' },
+  { id: 'finance', labelKey: 'preferences.sectors_list.finance', icon: Briefcase, color: '#FFB347' },
 ]
 
 const cities = [
-  { id: 'douala', label: 'Douala' },
-  { id: 'yaounde', label: 'Yaoundé' },
-  { id: 'bafoussam', label: 'Bafoussam' },
-  { id: 'garoua', label: 'Garoua' },
-  { id: 'buea', label: 'Buea' },
-  { id: 'maroua', label: 'Maroua' },
-  { id: 'bamenda', label: 'Bamenda' },
-  { id: 'ebolowa', label: 'Ebolowa' },
-  { id: 'douala-akwa', label: 'Akwa' },
-  { id: 'douala-bonapriso', label: 'Bonapriso' },
-  { id: 'yaounde-bastos', label: 'Bastos' },
-  { id: 'yaounde-centre', label: 'Centre' },
+  { id: 'douala', labelKey: 'preferences.cities.Douala' },
+  { id: 'yaounde', labelKey: 'preferences.cities.Yaoundé' },
+  { id: 'bafoussam', labelKey: 'preferences.cities.Bafoussam' },
+  { id: 'garoua', labelKey: 'preferences.cities.Garoua' },
+  { id: 'buea', labelKey: 'preferences.cities.Buea' },
+  { id: 'maroua', labelKey: 'preferences.cities.Maroua' },
+  { id: 'bamenda', labelKey: 'preferences.cities.Bamenda' },
+  { id: 'ebolowa', labelKey: 'preferences.cities.Ebolowa' },
+  { id: 'douala-akwa', labelKey: 'preferences.cities.Akwa' },
+  { id: 'douala-bonapriso', labelKey: 'preferences.cities.Bonapriso' },
+  { id: 'yaounde-bastos', labelKey: 'preferences.cities.Bastos' },
+  { id: 'yaounde-centre', labelKey: 'preferences.cities.Centre' },
 ]
 
 export default function PreferencesScreen() {
   const { preferences, setPreferences, goBack } = useProcibleStore()
+  const { t, locale } = useI18n()
   const [localPrefs, setLocalPrefs] = useState<UserPreference>(preferences)
 
   const toggleSector = (id: string) => {
@@ -63,7 +65,7 @@ export default function PreferencesScreen() {
     try {
       await fetch('/api/preferences', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-locale': locale },
         body: JSON.stringify(localPrefs),
       })
     } catch {}
@@ -77,7 +79,7 @@ export default function PreferencesScreen() {
         <button onClick={goBack} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
           <ArrowLeft className="w-5 h-5 text-secondary-foreground" />
         </button>
-        <h1 className="text-lg font-bold">Préférences</h1>
+        <h1 className="text-lg font-bold">{t('preferences.title')}</h1>
       </div>
 
       <div className="px-5 mt-2">
@@ -85,7 +87,7 @@ export default function PreferencesScreen() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
             <Store className="w-4 h-4 text-[#FF7B54]" />
-            Secteurs d&apos;activité
+            {t('preferences.sectors')}
           </h2>
           <div className="grid grid-cols-3 gap-2">
             {sectors.map((sector) => {
@@ -106,7 +108,7 @@ export default function PreferencesScreen() {
                     <IconComp className="w-5 h-5" style={{ color: isSelected ? sector.color : undefined }} />
                   </div>
                   <span className={`text-[11px] font-medium ${isSelected ? 'text-[#FF7B54]' : 'text-muted-foreground'}`}>
-                    {sector.label}
+                    {t(sector.labelKey)}
                   </span>
                 </motion.button>
               )
@@ -118,7 +120,7 @@ export default function PreferencesScreen() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-6">
           <h2 className="text-base font-semibold mb-3 flex items-center gap-2">
             <MapPin className="w-4 h-4 text-[#6C3FA9]" />
-            Zones géographiques
+            {t('preferences.zones')}
           </h2>
           <div className="flex flex-wrap gap-2">
             {cities.map((city) => {
@@ -136,7 +138,7 @@ export default function PreferencesScreen() {
                 >
                   <span className="flex items-center gap-1.5">
                     <MapPin className="w-3 h-3" />
-                    {city.label}
+                    {t(city.labelKey)}
                   </span>
                 </motion.button>
               )
@@ -151,10 +153,10 @@ export default function PreferencesScreen() {
             className="w-full py-4 rounded-2xl procible-gradient text-white font-bold text-lg shadow-lg transition-all active:scale-[0.98]"
             style={{ minHeight: 56 }}
           >
-            Enregistrer
+            {t('preferences.save')}
           </button>
           <p className="text-xs text-center text-muted-foreground mt-2">
-            ProCible utilisera ces préférences pour ses recherches nocturnes
+            {t('preferences.helper')}
           </p>
         </motion.div>
       </div>

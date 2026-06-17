@@ -4,16 +4,18 @@ import { motion } from 'framer-motion'
 import { useProcibleStore, STAGE_CONFIG, STAGE_ORDER, type LeadStage } from '@/store/procible-store'
 import { Search, Clock, ChevronRight } from 'lucide-react'
 import ProspectionCTA from './ProspectionCTA'
+import { useI18n } from '@/lib/i18n'
 
-const sourceConfig: Record<string, { bg: string; text: string; label: string }> = {
-  maps: { bg: 'bg-[#4CAF50]/10', text: 'text-[#4CAF50]', label: 'Maps' },
-  facebook: { bg: 'bg-[#1877F2]/10', text: 'text-[#1877F2]', label: 'FB' },
-  instagram: { bg: 'bg-[#E4405F]/10', text: 'text-[#E4405F]', label: 'Insta' },
-  linkedin: { bg: 'bg-[#0A66C2]/10', text: 'text-[#0A66C2]', label: 'In' },
+const sourceConfig: Record<string, { bg: string; text: string; labelKey: string }> = {
+  maps: { bg: 'bg-[#4CAF50]/10', text: 'text-[#4CAF50]', labelKey: 'leads.sources.maps' },
+  facebook: { bg: 'bg-[#1877F2]/10', text: 'text-[#1877F2]', labelKey: 'leads.sources.facebook' },
+  instagram: { bg: 'bg-[#E4405F]/10', text: 'text-[#E4405F]', labelKey: 'leads.sources.instagram' },
+  linkedin: { bg: 'bg-[#0A66C2]/10', text: 'text-[#0A66C2]', labelKey: 'leads.sources.linkedin' },
 }
 
 export default function LeadsScreen() {
   const { leads, activeStageFilter, setActiveStageFilter, navigateTo, setSelectedLeadId } = useProcibleStore()
+  const { t, tp } = useI18n()
 
   const filteredLeads = activeStageFilter === 'all'
     ? leads
@@ -28,8 +30,8 @@ export default function LeadsScreen() {
     <div className="flex flex-col h-full pb-28">
       {/* Header - sticky */}
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-xl px-5 pt-6 pb-3">
-        <h1 className="text-2xl font-bold">Mes Clients</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">{leads.length} clients au total</p>
+        <h1 className="text-2xl font-bold">{t('leads.title')}</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">{tp(`leads.total_${leads.length === 1 ? 'one' : 'other'}`, leads.length, { count: leads.length })}</p>
 
         {/* Stage tabs - scrollable */}
         <div className="mt-3 -mx-5 px-5 flex gap-2 overflow-x-auto pb-2 no-scrollbar">
@@ -41,7 +43,7 @@ export default function LeadsScreen() {
                 : 'bg-secondary text-secondary-foreground'
             }`}
           >
-            Tous ({leads.length})
+            {t('leads.all_count', { count: leads.length })}
           </button>
           {STAGE_ORDER.map((stage) => {
             const config = STAGE_CONFIG[stage]
@@ -56,7 +58,7 @@ export default function LeadsScreen() {
                 }`}
               >
                 <span>{config.icon}</span>
-                {config.label} ({stageCounts[stage]})
+                {t(config.labelKey)} ({stageCounts[stage]})
               </button>
             )
           })}
@@ -77,11 +79,11 @@ export default function LeadsScreen() {
             <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-3">
               <Search className="w-7 h-7 text-muted-foreground" />
             </div>
-            <p className="font-semibold mb-1">Aucun client ici</p>
+            <p className="font-semibold mb-1">{t('leads.empty_title')}</p>
             <p className="text-sm text-muted-foreground text-center">
               {activeStageFilter === 'all'
-                ? 'ProCible trouvera des clients pour vous cette nuit.'
-                : `Aucun client à l'étape "${STAGE_CONFIG[activeStageFilter].label}".`}
+                ? t('leads.empty_message')
+                : t('leads.empty_stage_title', { stage: t(STAGE_CONFIG[activeStageFilter as LeadStage].labelKey) })}
             </p>
           </motion.div>
         ) : (
@@ -98,6 +100,7 @@ export default function LeadsScreen() {
 
 function LeadCard({ lead, index }: { lead: ReturnType<typeof useProcibleStore>['leads'][0]; index: number }) {
   const { navigateTo, setSelectedLeadId } = useProcibleStore()
+  const { t, tp } = useI18n()
   const stageConfig = STAGE_CONFIG[lead.stage]
   const srcConfig = sourceConfig[lead.source] || sourceConfig.maps
 
@@ -132,7 +135,7 @@ function LeadCard({ lead, index }: { lead: ReturnType<typeof useProcibleStore>['
         <div className="flex items-center gap-2">
           <p className="font-semibold text-sm truncate">{lead.name}</p>
           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${srcConfig.bg} ${srcConfig.text}`}>
-            {srcConfig.label}
+            {t(srcConfig.labelKey)}
           </span>
         </div>
         <p className="text-xs text-muted-foreground truncate">
@@ -140,16 +143,16 @@ function LeadCard({ lead, index }: { lead: ReturnType<typeof useProcibleStore>['
         </p>
         <div className="flex items-center gap-2 mt-1">
           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${stageConfig.bg} ${stageConfig.color}`}>
-            {stageConfig.label}
+            {t(stageConfig.labelKey)}
           </span>
           {daysSince !== null && (
             <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
               <Clock className="w-2.5 h-2.5" />
-              {daysSince === 0 ? "Aujourd'hui" : daysSince === 1 ? 'Hier' : `il y a ${daysSince}j`}
+              {daysSince === 0 ? t('leads.today') : daysSince === 1 ? t('leads.yesterday') : t('leads.days_ago', { count: daysSince })}
             </span>
           )}
           {lead.contactCount > 0 && (
-            <span className="text-[10px] text-muted-foreground">{lead.contactCount} contact{lead.contactCount > 1 ? 's' : ''}</span>
+            <span className="text-[10px] text-muted-foreground">{tp(`leads.contacts_${lead.contactCount === 1 ? 'one' : 'other'}`, lead.contactCount, { count: lead.contactCount })}</span>
           )}
         </div>
       </div>

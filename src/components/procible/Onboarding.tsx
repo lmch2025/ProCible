@@ -3,30 +3,31 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { useProcibleStore } from '@/store/procible-store'
-import { Phone, Rocket, Moon } from 'lucide-react'
+import { Phone, Rocket, Moon, Globe } from 'lucide-react'
+import { useI18n } from '@/lib/i18n'
 
 const slides = [
   {
     icon: Rocket,
-    title: 'Bienvenue',
-    subtitle: 'ProCible',
-    description: 'Votre assistant personnel de prospection. Il trouve des clients pour vous, chaque nuit.',
+    titleKey: 'onboarding.slide1_title',
+    subtitleKey: 'onboarding.slide1_brand',
+    descriptionKey: 'onboarding.slide1_desc',
     gradient: 'from-[#FF7B54] to-[#FFB347]',
     bgGradient: 'from-orange-50 to-amber-50',
   },
   {
     icon: Phone,
-    title: 'Dis-nous qui tu cherches',
-    subtitle: 'Vos préférences',
-    description: 'Secteur, ville, type d\'entreprise... Dites-nous et ProCible fera le reste.',
+    titleKey: 'onboarding.slide2_title',
+    subtitleKey: 'onboarding.slide2_subtitle',
+    descriptionKey: 'onboarding.slide2_desc',
     gradient: 'from-[#FF7B54] to-[#6C3FA9]',
     bgGradient: 'from-orange-50 to-purple-50',
   },
   {
     icon: Moon,
-    title: 'ProCible travaille pour toi cette nuit',
-    subtitle: 'Prêt ?',
-    description: 'Pendant que vous dormez, ProCible cherche. Le matin, vos clients sont là.',
+    titleKey: 'onboarding.slide3_title',
+    subtitleKey: 'onboarding.slide3_subtitle',
+    descriptionKey: 'onboarding.slide3_desc',
     gradient: 'from-[#6C3FA9] to-[#2EC4B6]',
     bgGradient: 'from-purple-50 to-teal-50',
   },
@@ -34,6 +35,7 @@ const slides = [
 
 export default function Onboarding() {
   const { onboardingStep, setOnboardingStep, completeOnboarding, setAuthenticated } = useProcibleStore()
+  const { t, locale, setLocale } = useI18n()
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [showCodeInput, setShowCodeInput] = useState(false)
@@ -89,19 +91,42 @@ export default function Onboarding() {
             </motion.div>
 
             <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-1">
-              {currentSlide.subtitle}
+              {t(currentSlide.subtitleKey)}
             </h2>
             <h1 className="text-3xl font-bold text-foreground mb-4">
-              {currentSlide.title}
+              {t(currentSlide.titleKey)}
             </h1>
             <p className="text-lg text-muted-foreground leading-relaxed">
-              {currentSlide.description}
+              {t(currentSlide.descriptionKey)}
             </p>
           </motion.div>
         </AnimatePresence>
       </div>
 
       <div className="relative z-10 px-6 pb-12">
+        {/* Language switcher — always visible during onboarding */}
+        <div className="mb-4 flex items-center justify-center gap-2">
+          <Globe className="w-4 h-4 text-muted-foreground" />
+          <button
+            type="button"
+            onClick={() => setLocale('fr')}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              locale === 'fr' ? 'bg-white text-[#FF7B54] shadow-sm' : 'bg-white/40 text-muted-foreground'
+            }`}
+          >
+            Français
+          </button>
+          <button
+            type="button"
+            onClick={() => setLocale('en')}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              locale === 'en' ? 'bg-white text-[#FF7B54] shadow-sm' : 'bg-white/40 text-muted-foreground'
+            }`}
+          >
+            English
+          </button>
+        </div>
+
         {onboardingStep === 2 && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -114,7 +139,7 @@ export default function Onboarding() {
                   <Phone className="w-5 h-5 text-[#FF7B54]" />
                   <input
                     type="tel"
-                    placeholder="Votre numéro"
+                    placeholder={t('onboarding.phone_placeholder')}
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="flex-1 bg-transparent outline-none text-lg placeholder:text-muted-foreground/50"
@@ -126,13 +151,13 @@ export default function Onboarding() {
                   disabled={phone.length < 8}
                   className="w-full py-4 rounded-2xl procible-gradient text-white font-semibold text-lg disabled:opacity-40 transition-all active:scale-[0.98]"
                 >
-                  Recevoir le code
+                  {t('onboarding.send_code')}
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-center text-sm text-muted-foreground">
-                  {codeSent ? 'Code envoyé !' : 'Entrez le code 4 chiffres'}
+                  {codeSent ? t('onboarding.code_sent') : t('onboarding.code_input')}
                 </p>
                 <div className="flex justify-center gap-3">
                   {[0, 1, 2, 3].map((i) => (
@@ -161,7 +186,7 @@ export default function Onboarding() {
                   disabled={code.length < 4}
                   className="w-full py-4 rounded-2xl procible-gradient text-white font-semibold text-lg disabled:opacity-40 transition-all active:scale-[0.98]"
                 >
-                  Vérifier
+                  {t('onboarding.verify')}
                 </button>
               </div>
             )}
@@ -189,13 +214,13 @@ export default function Onboarding() {
                 onClick={handleSkip}
                 className="flex-1 py-4 rounded-2xl bg-white/60 backdrop-blur text-muted-foreground font-semibold text-lg border border-white/50 transition-all active:scale-[0.98]"
               >
-                Passer
+                {t('onboarding.skip')}
               </button>
               <button
                 onClick={handleNext}
                 className="flex-1 py-4 rounded-2xl procible-gradient text-white font-semibold text-lg shadow-lg transition-all active:scale-[0.98]"
               >
-                Suivant
+                {t('onboarding.next')}
               </button>
             </>
           ) : (
@@ -203,7 +228,7 @@ export default function Onboarding() {
               onClick={handleSkip}
               className="flex-1 py-4 rounded-2xl bg-white/60 backdrop-blur text-muted-foreground font-semibold text-lg border border-white/50 transition-all active:scale-[0.98]"
             >
-              Mode démo
+              {t('onboarding.demo_mode')}
             </button>
           )}
         </div>

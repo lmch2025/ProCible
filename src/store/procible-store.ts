@@ -68,13 +68,16 @@ export interface ProspectionCampaign {
 }
 
 // Stage config — removed emoji icons (too AI-looking). Use clean dot indicator.
-export const STAGE_CONFIG: Record<LeadStage, { label: string; color: string; bg: string; icon: string }> = {
-  nouveau: { label: 'Nouveau', color: 'text-[#FF7B54]', bg: 'bg-[#FF7B54]/10', icon: '●' },
-  contacte: { label: 'Contacté', color: 'text-[#2EC4B6]', bg: 'bg-[#2EC4B6]/10', icon: '●' },
-  en_discussion: { label: 'En discussion', color: 'text-[#6C3FA9]', bg: 'bg-[#6C3FA9]/10', icon: '●' },
-  a_relancer: { label: 'À relancer', color: 'text-[#FFB347]', bg: 'bg-[#FFB347]/10', icon: '●' },
-  gagne: { label: 'Gagné', color: 'text-[#4CAF50]', bg: 'bg-[#4CAF50]/10', icon: '●' },
-  perdu: { label: 'Perdu', color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10', icon: '●' },
+// labelKey: i18n dictionary key for localized label (resolved via t()).
+// label: legacy French label kept for backward compatibility with admin components
+//        that import STAGE_CONFIG directly (do not use in user-facing procible components).
+export const STAGE_CONFIG: Record<LeadStage, { label: string; labelKey: string; color: string; bg: string; icon: string }> = {
+  nouveau: { label: 'Nouveau', labelKey: 'stages.nouveau', color: 'text-[#FF7B54]', bg: 'bg-[#FF7B54]/10', icon: '●' },
+  contacte: { label: 'Contacté', labelKey: 'stages.contacte', color: 'text-[#2EC4B6]', bg: 'bg-[#2EC4B6]/10', icon: '●' },
+  en_discussion: { label: 'En discussion', labelKey: 'stages.en_discussion', color: 'text-[#6C3FA9]', bg: 'bg-[#6C3FA9]/10', icon: '●' },
+  a_relancer: { label: 'À relancer', labelKey: 'stages.a_relancer', color: 'text-[#FFB347]', bg: 'bg-[#FFB347]/10', icon: '●' },
+  gagne: { label: 'Gagné', labelKey: 'stages.gagne', color: 'text-[#4CAF50]', bg: 'bg-[#4CAF50]/10', icon: '●' },
+  perdu: { label: 'Perdu', labelKey: 'stages.perdu', color: 'text-[#EF4444]', bg: 'bg-[#EF4444]/10', icon: '●' },
 }
 
 export const STAGE_ORDER: LeadStage[] = ['nouveau', 'contacte', 'en_discussion', 'a_relancer', 'gagne', 'perdu']

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useProcibleStore } from '@/store/procible-store'
 import { Plus, Sparkles } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useI18n } from '@/lib/i18n'
 
 /**
  * ProspectionCTA — sticky "Nouvelle recherche" button.
@@ -25,6 +26,7 @@ import { useEffect, useRef, useState } from 'react'
  */
 export default function ProspectionCTA() {
   const { setShowProspectionForm, prospectionSubmitting } = useProcibleStore()
+  const { t } = useI18n()
   const wrapRef = useRef<HTMLDivElement>(null)
   const [headerHeight, setHeaderHeight] = useState<number>(88) // safe default
 
@@ -71,7 +73,7 @@ export default function ProspectionCTA() {
           },
         }}
         className="group relative w-full h-12 rounded-full procible-gradient shadow-lg shadow-[#FF7B54]/30 overflow-hidden"
-        aria-label="Lancer une nouvelle recherche de clients"
+        aria-label={t('cta.new_search_aria')}
       >
         {/* Glow halo */}
         <span
@@ -104,7 +106,7 @@ export default function ProspectionCTA() {
             <Plus className="w-4 h-4 text-white" strokeWidth={3} />
           </motion.span>
           <span className="flex items-center gap-1.5 font-bold text-white text-sm">
-            Nouvelle recherche
+            {t('cta.new_search')}
             <Sparkles className="w-3.5 h-3.5 text-white/80" />
           </span>
         </span>

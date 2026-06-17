@@ -5,6 +5,7 @@ import { useProcibleStore } from '@/store/procible-store'
 import { ArrowLeft, Coins, Check, CreditCard, Receipt, Zap, TrendingUp, TrendingDown, Info } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
+import { useI18n } from '@/lib/i18n'
 
 interface CreditTransaction {
   id: string
@@ -32,13 +33,14 @@ const creditPacks = [
 ]
 
 const paymentMethods = [
-  { id: 'momo', label: 'Mobile Money', color: 'bg-[#FFB347]/10 text-[#FFB347]' },
-  { id: 'orange', label: 'Orange Money', color: 'bg-[#FF7B54]/10 text-[#FF7B54]' },
-  { id: 'mtn', label: 'MTN Money', color: 'bg-[#FFB347]/10 text-[#FFB347]' },
+  { id: 'momo', labelKey: 'profile.payment_momo' },
+  { id: 'orange', labelKey: 'profile.payment_orange' },
+  { id: 'mtn', labelKey: 'profile.payment_mtn' },
 ]
 
 export default function CreditsScreen() {
   const { goBack, credits, setCredits, plan } = useProcibleStore()
+  const { t, tp, locale } = useI18n()
   const [selectedPack, setSelectedPack] = useState<string>('medium')
   const [selectedMethod, setSelectedMethod] = useState<string>('momo')
   const [processing, setProcessing] = useState(false)
@@ -50,7 +52,7 @@ export default function CreditsScreen() {
   useEffect(() => {
     ;(async () => {
       try {
-        const res = await fetch('/api/credits')
+        const res = await fetch('/api/credits', { headers: { 'x-locale': locale } })
         if (res.ok) {
           const data = await res.json()
           setTransactions(data.transactions || [])
@@ -59,7 +61,7 @@ export default function CreditsScreen() {
         }
       } catch {}
     })()
-  }, [setCredits])
+  }, [setCredits, locale])
 
   const handlePurchase = async () => {
     setProcessing(true)
@@ -68,10 +70,10 @@ export default function CreditsScreen() {
     const pack = creditPacks.find(p => p.id === selectedPack)
     if (pack) {
       setCredits(credits + pack.credits)
-      toast.success(`${pack.credits} crédits ajoutés !`)
+      toast.success(t('credits.toast_added', { count: pack.credits }))
       // Reload transactions to show the purchase
       try {
-        const res = await fetch('/api/credits')
+        const res = await fetch('/api/credits', { headers: { 'x-locale': locale } })
         if (res.ok) {
           const data = await res.json()
           setTransactions(data.transactions || [])
@@ -89,7 +91,7 @@ export default function CreditsScreen() {
         <button onClick={goBack} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
           <ArrowLeft className="w-5 h-5 text-secondary-foreground" />
         </button>
-        <h1 className="text-lg font-bold">Crédits</h1>
+        <h1 className="text-lg font-bold">{t('credits.title')}</h1>
       </div>
 
       <div className="px-5 mt-2">
@@ -103,10 +105,10 @@ export default function CreditsScreen() {
           <div className="relative z-10">
             <div className="flex items-center gap-2 mb-2">
               <Coins className="w-5 h-5 text-white/80" />
-              <span className="text-white/80 text-sm">Solde actuel</span>
+              <span className="text-white/80 text-sm">{t('credits.balance')}</span>
             </div>
             <p className="text-5xl font-bold mb-2">{credits}</p>
-            <p className="text-white/80 text-sm">crédits disponibles · Plan {plan}</p>
+            <p className="text-white/80 text-sm">{t('credits.available_plan', { plan })}</p>
           </div>
         </motion.div>
 
@@ -120,8 +122,8 @@ export default function CreditsScreen() {
               <Receipt className="w-5 h-5 text-[#6C3FA9]" />
             </div>
             <div className="text-left">
-              <p className="font-semibold text-sm">Historique</p>
-              <p className="text-[10px] text-muted-foreground">Voir les transactions</p>
+              <p className="font-semibold text-sm">{t('credits.history')}</p>
+              <p className="text-[10px] text-muted-foreground">{t('credits.view_transactions')}</p>
             </div>
           </button>
           <button
@@ -132,8 +134,8 @@ export default function CreditsScreen() {
               <Zap className="w-5 h-5 text-[#FF7B54]" />
             </div>
             <div className="text-left">
-              <p className="font-semibold text-sm">Tarification</p>
-              <p className="text-[10px] text-muted-foreground">Coût des actions</p>
+              <p className="font-semibold text-sm">{t('credits.pricing')}</p>
+              <p className="text-[10px] text-muted-foreground">{t('credits.actions_cost')}</p>
             </div>
           </button>
         </div>
@@ -141,7 +143,7 @@ export default function CreditsScreen() {
         {view === 'main' && (
           <>
             {/* Credit packs */}
-            <h2 className="text-base font-semibold mb-3">Choisissez un pack</h2>
+            <h2 className="text-base font-semibold mb-3">{t('credits.choose_pack')}</h2>
             <div className="space-y-3 mb-6">
               {creditPacks.map((pack) => {
                 const isSelected = selectedPack === pack.id
@@ -162,11 +164,11 @@ export default function CreditsScreen() {
                       <Coins className="w-6 h-6 text-white" />
                     </div>
                     <div className="flex-1 text-left">
-                      <p className="font-bold text-lg">{pack.credits} crédits</p>
+                      <p className="font-bold text-lg">{pack.credits} {t('credits.credits')}</p>
                       <p className="text-sm text-muted-foreground">{pack.price}</p>
                     </div>
                     {pack.popular && (
-                      <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-[#6C3FA9]/10 text-[#6C3FA9]">Populaire</span>
+                      <span className="px-2 py-1 rounded-full text-[10px] font-bold bg-[#6C3FA9]/10 text-[#6C3FA9]">{t('credits.popular')}</span>
                     )}
                     {isSelected && (
                       <div className="w-6 h-6 rounded-full bg-[#FF7B54] flex items-center justify-center">
@@ -179,7 +181,7 @@ export default function CreditsScreen() {
             </div>
 
             {/* Payment methods */}
-            <h2 className="text-base font-semibold mb-3">Méthode de paiement</h2>
+            <h2 className="text-base font-semibold mb-3">{t('credits.payment_method')}</h2>
             <div className="grid grid-cols-3 gap-2 mb-6">
               {paymentMethods.map((method) => {
                 const isSelected = selectedMethod === method.id
@@ -192,7 +194,7 @@ export default function CreditsScreen() {
                     }`}
                   >
                     <CreditCard className={`w-5 h-5 mx-auto mb-1 ${isSelected ? 'text-[#FF7B54]' : 'text-muted-foreground'}`} />
-                    <p className="text-[10px] font-medium">{method.label}</p>
+                    <p className="text-[10px] font-medium">{t(method.labelKey)}</p>
                   </button>
                 )
               })}
@@ -208,18 +210,18 @@ export default function CreditsScreen() {
               {processing ? (
                 <>
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Traitement...
+                  {t('credits.processing')}
                 </>
               ) : (
                 <>
                   <Coins className="w-5 h-5" />
-                  Acheter maintenant
+                  {t('credits.buy_now')}
                 </>
               )}
             </button>
 
             <p className="text-xs text-center text-muted-foreground mt-3">
-              Paiement sécurisé · Activation immédiate
+              {t('credits.secure_payment')}
             </p>
           </>
         )}
@@ -228,6 +230,7 @@ export default function CreditsScreen() {
           <TransactionHistory
             transactions={transactions}
             onBack={() => setView('main')}
+            locale={locale}
           />
         )}
 
@@ -239,28 +242,29 @@ export default function CreditsScreen() {
   )
 }
 
-function TransactionHistory({ transactions, onBack }: { transactions: CreditTransaction[]; onBack: () => void }) {
+function TransactionHistory({ transactions, onBack, locale }: { transactions: CreditTransaction[]; onBack: () => void; locale: 'fr' | 'en' }) {
+  const { t } = useI18n()
   const totalIn = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
   const totalOut = transactions.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0)
 
   return (
     <div>
       <button onClick={onBack} className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
-        <ArrowLeft className="w-3 h-3" />Retour
+        <ArrowLeft className="w-3 h-3" />{t('credits.back')}
       </button>
 
-      <h2 className="text-base font-semibold mb-3">Historique des transactions</h2>
+      <h2 className="text-base font-semibold mb-3">{t('credits.transactions_history')}</h2>
 
       <div className="grid grid-cols-2 gap-2 mb-4">
         <div className="bg-card rounded-2xl p-3 border border-border/50 shadow-sm">
           <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <TrendingUp className="w-3 h-3 text-green-500" />Crédités
+            <TrendingUp className="w-3 h-3 text-green-500" />{t('credits.credited')}
           </p>
           <p className="text-xl font-bold text-green-600">+{totalIn}</p>
         </div>
         <div className="bg-card rounded-2xl p-3 border border-border/50 shadow-sm">
           <p className="text-[10px] text-muted-foreground flex items-center gap-1">
-            <TrendingDown className="w-3 h-3 text-red-500" />Débités
+            <TrendingDown className="w-3 h-3 text-red-500" />{t('credits.debited')}
           </p>
           <p className="text-xl font-bold text-red-600">-{totalOut}</p>
         </div>
@@ -269,27 +273,30 @@ function TransactionHistory({ transactions, onBack }: { transactions: CreditTran
       {transactions.length === 0 ? (
         <div className="bg-card rounded-2xl p-8 border border-border/50 text-center">
           <Receipt className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">Aucune transaction pour l'instant</p>
+          <p className="text-sm text-muted-foreground">{t('credits.empty_transactions')}</p>
         </div>
       ) : (
         <div className="space-y-2">
-          {transactions.map((t) => (
-            <div key={t.id} className="bg-card rounded-2xl p-3 border border-border/50 shadow-sm flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${t.amount >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
-                {t.amount >= 0 ? <TrendingUp className="w-4 h-4 text-green-600" /> : <TrendingDown className="w-4 h-4 text-red-600" />}
+          {transactions.map((tx) => (
+            <div key={tx.id} className="bg-card rounded-2xl p-3 border border-border/50 shadow-sm flex items-center gap-3">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${tx.amount >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                {tx.amount >= 0 ? <TrendingUp className="w-4 h-4 text-green-600" /> : <TrendingDown className="w-4 h-4 text-red-600" />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-sm truncate">{t.label}</p>
+                <p className="font-semibold text-sm truncate">
+                  {/* Try localized rule label first, fall back to stored label */}
+                  {t(`credit_rules.${tx.action}`) !== `credit_rules.${tx.action}` ? t(`credit_rules.${tx.action}`) : tx.label}
+                </p>
                 <p className="text-[10px] text-muted-foreground truncate">
-                  {new Date(t.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  {t.note ? ` · ${t.note}` : ''}
+                  {new Date(tx.createdAt).toLocaleDateString(locale === 'en' ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                  {tx.note ? ` · ${tx.note}` : ''}
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className={`font-bold text-sm ${t.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {t.amount > 0 ? '+' : ''}{t.amount}
+                <p className={`font-bold text-sm ${tx.amount >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {tx.amount > 0 ? '+' : ''}{tx.amount}
                 </p>
-                <p className="text-[9px] text-muted-foreground">solde: {t.balanceAfter}</p>
+                <p className="text-[9px] text-muted-foreground">{t('credits.balance_label', { count: tx.balanceAfter })}</p>
               </div>
             </div>
           ))}
@@ -300,53 +307,59 @@ function TransactionHistory({ transactions, onBack }: { transactions: CreditTran
 }
 
 function PricingTable({ rules, onBack }: { rules: CreditRule[]; onBack: () => void }) {
+  const { t, tp } = useI18n()
   return (
     <div>
       <button onClick={onBack} className="text-xs text-muted-foreground mb-3 flex items-center gap-1">
-        <ArrowLeft className="w-3 h-3" />Retour
+        <ArrowLeft className="w-3 h-3" />{t('credits.back')}
       </button>
 
-      <h2 className="text-base font-semibold mb-1">Coût des actions</h2>
+      <h2 className="text-base font-semibold mb-1">{t('credits.actions_cost')}</h2>
       <p className="text-xs text-muted-foreground mb-4 flex items-start gap-1.5">
         <Info className="w-3 h-3 mt-0.5 shrink-0" />
-        Chaque action à valeur ajoutée consomme des crédits. Certaines ont un quota gratuit quotidien.
+        {t('credits.info')}
       </p>
 
       <div className="space-y-2">
         {rules.length === 0 ? (
           <div className="bg-card rounded-2xl p-8 border border-border/50 text-center">
             <Zap className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Aucune règle de tarification configurée</p>
+            <p className="text-sm text-muted-foreground">{t('credits.empty_rules')}</p>
           </div>
         ) : (
-          rules.map((rule) => (
-            <div key={rule.action} className="bg-card rounded-2xl p-4 border border-border/50 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center shrink-0">
-                  <Zap className="w-4 h-4 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold text-sm">{rule.label}</p>
-                    <p className="font-bold text-sm text-[#FF7B54] shrink-0">
-                      {rule.cost === 0 ? (
-                        <span className="text-green-600">Gratuit</span>
-                      ) : (
-                        <span>{rule.cost} <span className="text-[10px] text-muted-foreground font-normal">crédits</span></span>
-                      )}
-                    </p>
+          rules.map((rule) => {
+            // Try localized rule label first (action → key), fall back to stored label
+            const localizedLabel = t(`credit_rules.${rule.action}`)
+            const displayLabel = localizedLabel !== `credit_rules.${rule.action}` ? localizedLabel : rule.label
+            return (
+              <div key={rule.action} className="bg-card rounded-2xl p-4 border border-border/50 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 text-white" />
                   </div>
-                  {rule.description && <p className="text-xs text-muted-foreground mt-1">{rule.description}</p>}
-                  {rule.freeQuotaPerDay > 0 && (
-                    <p className="text-[10px] text-green-600 mt-1.5 flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      {rule.freeQuotaPerDay} premier(s) usage(s) gratuit(s) par jour
-                    </p>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-sm">{displayLabel}</p>
+                      <p className="font-bold text-sm text-[#FF7B54] shrink-0">
+                        {rule.cost === 0 ? (
+                          <span className="text-green-600">{t('credits.free')}</span>
+                        ) : (
+                          <span>{rule.cost} <span className="text-[10px] text-muted-foreground font-normal">{t('credits.credits')}</span></span>
+                        )}
+                      </p>
+                    </div>
+                    {rule.description && <p className="text-xs text-muted-foreground mt-1">{rule.description}</p>}
+                    {rule.freeQuotaPerDay > 0 && (
+                      <p className="text-[10px] text-green-600 mt-1.5 flex items-center gap-1">
+                        <Check className="w-3 h-3" />
+                        {tp(`credits.free_quota_${rule.freeQuotaPerDay === 1 ? 'one' : 'other'}`, rule.freeQuotaPerDay, { count: rule.freeQuotaPerDay })}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

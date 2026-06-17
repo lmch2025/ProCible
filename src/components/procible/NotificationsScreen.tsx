@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useProcibleStore, type AppNotification } from '@/store/procible-store'
 import { Bell, CreditCard, Check, RotateCcw, MessageSquare, Lightbulb, UserPlus } from 'lucide-react'
 import ProspectionCTA from './ProspectionCTA'
+import { useI18n } from '@/lib/i18n'
 
 const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string }> = {
   new_leads: { icon: UserPlus, color: 'text-[#FF7B54]', bg: 'bg-[#FF7B54]/10' },
@@ -16,6 +17,7 @@ const typeConfig: Record<string, { icon: typeof Bell; color: string; bg: string 
 
 export default function NotificationsScreen() {
   const { notifications, markNotificationRead, navigateTo, setSelectedLeadId } = useProcibleStore()
+  const { t, tp, locale } = useI18n()
   const unreadCount = notifications.filter(n => !n.read).length
 
   const handleNotifClick = (notif: AppNotification) => {
@@ -32,9 +34,9 @@ export default function NotificationsScreen() {
       <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-xl px-5 pt-6 pb-4">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">Notifications</h1>
+            <h1 className="text-2xl font-bold">{t('notifications.title')}</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {unreadCount > 0 ? `${unreadCount} non lue${unreadCount > 1 ? 's' : ''}` : 'Tout est lu'}
+              {unreadCount > 0 ? tp(`notifications.unread_${unreadCount === 1 ? 'one' : 'other'}`, unreadCount, { count: unreadCount }) : t('notifications.all_read')}
             </p>
           </div>
           {unreadCount > 0 && (
@@ -54,8 +56,8 @@ export default function NotificationsScreen() {
             <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center mb-4">
               <Bell className="w-8 h-8 text-muted-foreground" />
             </div>
-            <p className="text-lg font-semibold mb-1">Aucune notification</p>
-            <p className="text-sm text-muted-foreground text-center">ProCible vous alertera pour les suivis et relances.</p>
+            <p className="text-lg font-semibold mb-1">{t('notifications.empty_title')}</p>
+            <p className="text-sm text-muted-foreground text-center">{t('notifications.empty_message')}</p>
           </motion.div>
         ) : (
           <div className="space-y-3">
@@ -84,7 +86,7 @@ export default function NotificationsScreen() {
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{notif.message}</p>
                       <p className="text-[10px] text-muted-foreground/60 mt-1">
-                        {new Date(notif.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        {new Date(notif.createdAt).toLocaleDateString(locale === 'en' ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
                   </motion.button>

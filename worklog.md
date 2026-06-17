@@ -230,3 +230,75 @@ Stage Summary:
 - Ownership check + audit log sur chaque opération admin.
 - UI user (CreditsScreen) : 3 vues Main/History/Pricing. UI admin (CreditsTab) : 3 sous-onglets Utilisateurs/Règles/Transactions.
 - Rétro-compat : le champ user.credits reste la source de vérité du solde, les transactions sont en plus pour l'audit/transparence.
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Bilingual FR/EN overhaul with auto-detection + French fallback
+
+Work Log:
+- Built i18n infrastructure from scratch (no prior i18n existed):
+  - `src/lib/i18n/dictionary.ts`: complete FR + EN dictionaries covering ~280 keys (stages, nav, home, leads, notifications, profile, preferences, credits, onboarding, lead_detail, prospection, common, credit_rules, notifications_db, api errors).
+  - `src/lib/i18n/index.tsx`: I18nProvider + `useI18n`/`useT`/`useLocale` hooks. `t()` for plain strings, `tp()` for pluralization (`{one, other}` objects). Interpolation via `{var}` placeholders.
+  - `src/lib/i18n/server.ts`: `getLocaleFromRequest(req)` resolves locale in this priority: (1) `x-locale` header, (2) `?lang=` query param, (3) `Accept-Language` header, (4) default French. `tServer()` and `tServerP()` mirror client semantics for API routes.
+  - `src/lib/i18n/use-stage-label.ts`: convenience hook to resolve stage labels via `t(STAGE_CONFIG[stage].labelKey)`.
+  - `src/lib/i18n/use-fetch-with-locale.ts`: optional helper to auto-inject `x-locale` header on every fetch.
+
+- Auto-detection (client-side, runs in I18nProvider on mount):
+  1. `localStorage['procible.locale']` — explicit user choice from a previous session
+  2. `navigator.language` / `navigator.languages` — browser preference (any `en-*` → English, any `fr-*` → French)
+  3. Default French (app's primary market is francophone Africa)
+  - Locale persisted to localStorage on every `setLocale()` call.
+  - `<html lang="...">` attribute kept in sync for accessibility.
+
+- Refactored `STAGE_CONFIG` in `src/store/procible-store.ts`: added `labelKey` field (e.g. `'stages.nouveau'`) alongside the legacy `label` field for backward compat with admin components. All user-facing procible components now resolve via `t(STAGE_CONFIG[stage].labelKey)`.
+
+- Translated ALL 11 user-facing procible components (~219 strings total):
+  - `BottomNav.tsx`: 4 nav labels + center "+" button + pluralized profile aria-label
+  - `ProspectionCTA.tsx`: button text + aria-label
+  - `HomeScreen.tsx`: greeting, brand, low-credit banner (singular/plural), pipeline stats, active campaigns, follow-up alerts, recent actions
+  - `LeadsScreen.tsx`: title, count (pluralized), tabs, source badges (Maps/FB/Insta/In), empty states (per-stage), time-relative labels (Today/Yesterday/Xd ago), contact count (pluralized)
+  - `NotificationsScreen.tsx`: title, unread count (pluralized), empty state, locale-aware date format (fr-FR vs en-US)
+  - `Onboarding.tsx`: 3 marketing slides (title/subtitle/description) + language switcher chip (FR/EN) always visible during onboarding + phone/code inputs + buttons
+  - `ProfileScreen.tsx`: profile card + subscription tiers (Free/Starter/Pro) + payment methods + language selector section (Globe icon + FR/EN toggle) + settings list + version footer
+  - `PreferencesScreen.tsx`: 12 sector labels + 12 city proper nouns + headings + save button + helper text
+  - `CreditsScreen.tsx`: 3 sub-views (main/history/pricing) + balance card + 3 packs + 3 payment methods + transaction list (locale-aware rule labels via `t(\`credit_rules.${action}\`)` with fallback to stored label) + locale-aware dates
+  - `LeadDetail.tsx` (~55 strings): detail header, stage picker, sector/city/stage/score labels (incl. speech synthesis utterance — localized text + locale-aware `utterance.lang`), AI draft panel, AI follow-up plan timeline (step labels, day labels, channel labels, script/tips/execute buttons), contact history, all toasts (plan generated, free quota, insufficient, balance/required, copy/step done, connection error)
+  - `ProspectionForm.tsx` (~32 strings): title, subtitle, product name input, zones label (pluralized), country/city autocomplete placeholders (dynamic country name), city empty state, helper text, images label, insufficient-credits warning, submit button (pluralized zones count), credit cost hint, all toasts (product required, zones required, launched, free quota, insufficient, balance/required, launch failed, connection error, AI targeting applied)
+
+- Localized 2 backend API routes (most user-facing):
+  - `/api/prospection`: all error messages (productName required, locations required, invalid, user unresolved, insufficient credits detail/short, deduction failed, campaign failed, launch error), credit transaction notes (campaign name, refund note, priority target), demo user name, and the notification title/message created on campaign launch (campaign_launched_title/message/message_short).
+  - `/api/ai/follow-up-plan`: all error messages (leadId required, lead not found, access denied, insufficient credits detail/short, deduction failed, plan generation failed, plan error), credit transaction notes (plan name, refund note), and scheduled follow-up notifications (followup_title/message).
+
+- Client fetches updated to send `x-locale` header on every API call that returns user-facing strings:
+  - `ProspectionForm.tsx`: POST /api/prospection, GET /api/credits
+  - `LeadDetail.tsx`: GET /api/ai/follow-up-plan, POST /api/ai/follow-up-plan, POST /api/ai/draft, PATCH /api/crm/leads
+  - `CreditsScreen.tsx`: GET /api/credits (×2 — on mount and after purchase)
+  - `PreferencesScreen.tsx`: POST /api/preferences
+
+- Updated `src/app/layout.tsx`: wrapped app in `<I18nProvider>` (also renamed metadata title from "Hermes" to "ProCible" for brand consistency).
+
+- Backward compatibility:
+  - Admin components that import `STAGE_CONFIG.label` directly still work (legacy `label` field retained).
+  - Existing seeded notifications in DB remain in French; only NEW notifications created after this deploy will respect the user's locale.
+  - Credit rule labels stored in DB fall back to the stored `label` if the `action` doesn't match any `credit_rules.*` dictionary key.
+  - All fetches still work without `x-locale` header — server defaults to French.
+
+- Lint: 0 new errors. 1 suppressed `react-hooks/set-state-in-effect` warning in I18nProvider (intentional — locale must be detected client-side after mount to read localStorage/navigator; safe because we render `fr` on SSR and hydrate to detected locale on mount).
+- TS: 0 new errors. Pre-existing errors in `LeadsScreen.tsx` (LeadsCard `ReturnType<typeof useProcibleStore>['leads']`) and `prospection/route.ts` (`locations` schema mismatch) are unrelated to i18n changes.
+- Verified locally with curl:
+  - POST /api/prospection with `x-locale: fr` → `{"error":"productName requis"}`
+  - POST /api/prospection with `x-locale: en` → `{"error":"productName required"}`
+  - POST /api/prospection with `Accept-Language: en-US,en;q=0.9` → English
+  - POST /api/prospection with `Accept-Language: fr-FR,fr;q=0.9` → French
+  - POST /api/prospection with no headers → French (fallback)
+
+Stage Summary:
+- Full bilingual FR/EN app with auto-detection (localStorage → navigator.language → fallback French).
+- ~280 translation keys covering all 11 user-facing screens + 2 backend API routes.
+- Language toggle UI in both Onboarding (chip switcher) and Profile (dedicated section with Globe icon).
+- Backend respects `x-locale` header (sent by every client fetch), `?lang=` query, or `Accept-Language` browser header.
+- Per-lead follow-up plan notifications created in the user's locale — they show up correctly in the NotificationsScreen.
+- Speech synthesis (accessibility "speak lead" button) now uses locale-aware text + `utterance.lang`.
+- Date formatting uses `toLocaleDateString(locale === 'en' ? 'en-US' : 'fr-FR')` everywhere it appears in user-facing components.
+- Zero new lint errors, zero new TS errors. Build clean (pre-existing build error from `ensureSeedData` missing export is unrelated and was present before this work).
