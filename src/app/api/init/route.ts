@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { db, ensureSeedData } from '@/lib/db'
+import { db } from '@/lib/db'
+import { ensureSeedData } from '@/lib/seed'
 
 // Single endpoint that returns ALL data the app needs on startup
 // Replaces 4 sequential API calls with 1 parallel call
