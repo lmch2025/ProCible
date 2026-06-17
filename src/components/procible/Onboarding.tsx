@@ -35,7 +35,7 @@ const slides = [
 
 export default function Onboarding() {
   const { onboardingStep, setOnboardingStep, completeOnboarding, setAuthenticated } = useProcibleStore()
-  const { t, locale, setLocale } = useI18n()
+  const { t, locale, isAuto, setLocale, resetToAuto } = useI18n()
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
   const [showCodeInput, setShowCodeInput] = useState(false)
@@ -104,14 +104,23 @@ export default function Onboarding() {
       </div>
 
       <div className="relative z-10 px-6 pb-12">
-        {/* Language switcher — always visible during onboarding */}
-        <div className="mb-4 flex items-center justify-center gap-2">
+        {/* Language switcher — always visible during onboarding. Includes an "Auto" option that follows the browser language. */}
+        <div className="mb-4 flex items-center justify-center gap-2 flex-wrap">
           <Globe className="w-4 h-4 text-muted-foreground" />
+          <button
+            type="button"
+            onClick={resetToAuto}
+            className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
+              isAuto ? 'bg-white text-[#FF7B54] shadow-sm' : 'bg-white/40 text-muted-foreground'
+            }`}
+          >
+            {t('onboarding.language_auto')}
+          </button>
           <button
             type="button"
             onClick={() => setLocale('fr')}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-              locale === 'fr' ? 'bg-white text-[#FF7B54] shadow-sm' : 'bg-white/40 text-muted-foreground'
+              !isAuto && locale === 'fr' ? 'bg-white text-[#FF7B54] shadow-sm' : 'bg-white/40 text-muted-foreground'
             }`}
           >
             Français
@@ -120,7 +129,7 @@ export default function Onboarding() {
             type="button"
             onClick={() => setLocale('en')}
             className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
-              locale === 'en' ? 'bg-white text-[#FF7B54] shadow-sm' : 'bg-white/40 text-muted-foreground'
+              !isAuto && locale === 'en' ? 'bg-white text-[#FF7B54] shadow-sm' : 'bg-white/40 text-muted-foreground'
             }`}
           >
             English

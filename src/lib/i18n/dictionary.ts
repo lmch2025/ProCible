@@ -129,6 +129,8 @@ export const fr = {
     settings_language: 'Langue',
     language_fr: 'Français',
     language_en: 'English',
+    language_auto: 'Automatique',
+    language_auto_description: 'Détecter depuis le navigateur',
     language_description: 'Choisissez la langue de l\'application',
     version: 'ProCible v1.0.0',
     credits: 'crédits',
@@ -230,6 +232,7 @@ export const fr = {
     language_section: 'Langue',
     language_fr: 'Français',
     language_en: 'English',
+    language_auto: 'Automatique',
   },
 
   // LeadDetail
@@ -652,6 +655,8 @@ export const en: Dictionary = {
     settings_language: 'Language',
     language_fr: 'Français',
     language_en: 'English',
+    language_auto: 'Automatic',
+    language_auto_description: 'Detect from browser',
     language_description: 'Choose the app language',
     version: 'ProCible v1.0.0',
     credits: 'credits',
@@ -750,6 +755,7 @@ export const en: Dictionary = {
     language_section: 'Language',
     language_fr: 'Français',
     language_en: 'English',
+    language_auto: 'Automatic',
   },
 
   lead_detail: {

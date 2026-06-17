@@ -7,7 +7,7 @@ import { useI18n } from '@/lib/i18n'
 
 export default function ProfileScreen() {
   const { userName, phone, plan, credits, navigateTo, leads } = useProcibleStore()
-  const { t, locale, setLocale } = useI18n()
+  const { t, locale, isAuto, setLocale, resetToAuto } = useI18n()
 
   const contactedLeads = leads.filter(l => l.contactCount > 0).length
   const wonLeads = leads.filter(l => l.stage === 'gagne').length
@@ -135,12 +135,23 @@ export default function ProfileScreen() {
               <span className="flex-1 font-medium text-sm">{t('profile.settings_language')}</span>
             </div>
             <p className="text-xs text-muted-foreground mb-2 ml-8">{t('profile.language_description')}</p>
-            <div className="flex gap-2 ml-8">
+            <div className="flex gap-2 ml-8 flex-wrap">
+              <button
+                type="button"
+                onClick={resetToAuto}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                  isAuto
+                    ? 'bg-[#FF7B54] text-white shadow-sm'
+                    : 'bg-secondary text-secondary-foreground'
+                }`}
+              >
+                {t('profile.language_auto')}
+              </button>
               <button
                 type="button"
                 onClick={() => setLocale('fr')}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  locale === 'fr'
+                  !isAuto && locale === 'fr'
                     ? 'bg-[#FF7B54] text-white shadow-sm'
                     : 'bg-secondary text-secondary-foreground'
                 }`}
@@ -151,7 +162,7 @@ export default function ProfileScreen() {
                 type="button"
                 onClick={() => setLocale('en')}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  locale === 'en'
+                  !isAuto && locale === 'en'
                     ? 'bg-[#FF7B54] text-white shadow-sm'
                     : 'bg-secondary text-secondary-foreground'
                 }`}
@@ -159,6 +170,12 @@ export default function ProfileScreen() {
                 {t('profile.language_en')}
               </button>
             </div>
+            {isAuto && (
+              <p className="text-xs text-muted-foreground mt-2 ml-8">
+                {t('profile.language_auto_description')} ·{' '}
+                {locale === 'fr' ? t('profile.language_fr') : t('profile.language_en')}
+              </p>
+            )}
           </div>
           {[
             { icon: Settings, labelKey: 'profile.settings_preferences', screen: 'preferences' as const, color: 'text-[#FF7B54]' },

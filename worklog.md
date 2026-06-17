@@ -302,3 +302,63 @@ Stage Summary:
 - Speech synthesis (accessibility "speak lead" button) now uses locale-aware text + `utterance.lang`.
 - Date formatting uses `toLocaleDateString(locale === 'en' ? 'en-US' : 'fr-FR')` everywhere it appears in user-facing components.
 - Zero new lint errors, zero new TS errors. Build clean (pre-existing build error from `ensureSeedData` missing export is unrelated and was present before this work).
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Fix i18n auto-detection — app should adapt to browser/phone language
+
+Work Log:
+- Diagnosed 4 root causes in the previous i18n implementation:
+  1. `useState<Locale>(DEFAULT_LOCALE)` + `useEffect`-based detection → first paint always French, with a visible flash for English users
+  2. No pre-hydration script → React hydrates with French before detection runs
+  3. `localStorage['procible.locale']` written by `setLocale()` was indistinguishable from an auto-detected value → once a user (or any code path) wrote 'fr', the browser language was ignored forever, even after a browser-language change
+  4. No way for the user to reset to auto-detection from the UI
+
+- Refactored `src/lib/i18n/index.tsx`:
+  • Switched from `useState` + `useEffect` to `useSyncExternalStore` — the canonical React 18 pattern for SSR-safe external state. Server snapshot returns `'fr'` (matches SSR markup, no hydration mismatch); client snapshot reads from `localStorage['procible.locale']` which the inline pre-hydration script has already populated. React automatically re-renders with the real locale immediately after hydration.
+  • Split storage into two keys: `procible.locale` (current effective locale, always present in browser) vs `procible.locale.explicit` (present ONLY when the user has manually chosen a language via the UI). Detection logic checks `procible.locale.explicit` first; if absent, re-detects from `navigator.language` / `navigator.languages` on every load. This means: a user who has never manually picked a language will see the app follow their browser/phone language even if it changes.
+  • Added `isAuto` flag (boolean) exposed by the context, true when no explicit choice exists — drives the "Auto" highlight in the UI.
+  • Added `resetToAuto()` to the context: clears `procible.locale.explicit`, re-detects from browser, persists the new effective locale, dispatches a change event.
+  • Updated `setLocale()` to write BOTH keys (effective + explicit) so manual choices "stick" and aren't overridden by re-detection.
+  • Added custom event `'procible:locale-change'` + `storage` listener so `useSyncExternalStore` re-renders all consumers on locale changes (including cross-tab changes).
+
+- Added inline pre-hydration script in `src/app/layout.tsx` `<head>` (`LOCALE_INIT_SCRIPT`):
+  • Runs synchronously before React hydrates.
+  • Reads `procible.locale.explicit` first (user choice wins); if absent, iterates `navigator.languages` (falls back to `navigator.language`), returns `'en'` for any en-* code, `'fr'` for any fr-* code, default `'fr'`.
+  • Writes result to `procible.locale` (so React's `useSyncExternalStore` client snapshot reads the correct value on the first client render) and sets `document.documentElement.lang` (so the `<html lang>` attribute is correct from the very first paint, no flash).
+  • Wrapped in try/catch so it never blocks hydration (e.g., if localStorage is disabled in private browsing).
+  • Logic intentionally mirrors `detectBrowserLocale()` in `src/lib/i18n/index.tsx` — kept in sync.
+
+- Added new dictionary keys for the "Auto" option:
+  • FR: `profile.language_auto` = "Automatique", `profile.language_auto_description` = "Détecter depuis le navigateur"
+  • EN: `profile.language_auto` = "Automatic", `profile.language_auto_description` = "Detect from browser"
+  • Same `language_auto` key added to the `onboarding` namespace (FR + EN).
+
+- Updated `src/components/procible/ProfileScreen.tsx` language selector:
+  • Added a 3rd pill button "Automatique" / "Automatic" that calls `resetToAuto()`.
+  • When `isAuto === true`, the "Auto" pill is highlighted (orange #FF7B54) and the FR/EN pills are dimmed — even though one of them matches the current locale.
+  • When the user explicitly picks FR or EN, the "Auto" pill is dimmed and the chosen one is highlighted.
+  • Added a helper line below the pills when `isAuto` is true: "Détecter depuis le navigateur · Français" (or English equivalent) so the user knows which language is currently auto-detected.
+  • Wrapped pills in `flex-wrap` so they don't overflow on narrow phones.
+
+- Updated `src/components/procible/Onboarding.tsx` language switcher (always visible during onboarding):
+  • Same 3-pill pattern: Auto / Français / English.
+  • When `isAuto === true`, "Auto" is highlighted with the white-on-coral style; otherwise the explicitly-selected language is highlighted.
+  • Wrapped in `flex-wrap` to handle small screens.
+
+- Backward compatibility:
+  • Existing users with `localStorage['procible.locale']` set to 'fr' or 'en' (from the previous implementation) but WITHOUT `procible.locale.explicit` will now have their browser language re-detected on next load. This is the intended fix — those users were stuck on French even when their browser was English.
+  • Users who explicitly clicked a language button in the previous implementation will continue to see that language (their choice will be migrated to `procible.locale.explicit` on their next `setLocale()` call; in the meantime, the inline script will read `procible.locale` and use it, preserving their experience).
+  • Server-side i18n (`src/lib/i18n/server.ts`) is unchanged — still resolves locale from `x-locale` header → `?lang=` query → `Accept-Language` → default French.
+
+- Lint: 0 errors on changed files. Build: success (Next.js 16.1.3 production build compiled in 5.9s).
+- Pre-existing TS errors (mock-db, hermes legacy, schema mismatches) remain unchanged — unrelated to i18n.
+
+Stage Summary:
+- App now auto-adapts to the browser/phone language on first load, with no French flash for English users (and vice versa).
+- Inline pre-hydration script sets `<html lang>` and `localStorage['procible.locale']` before React renders, so the very first paint is already in the correct language.
+- `useSyncExternalStore` handles SSR/hydration correctly — no hydration mismatch warnings.
+- Two-key storage (`procible.locale` + `procible.locale.explicit`) distinguishes "user chose" from "auto-detected" → changing browser language now actually updates the app language (for users who haven't manually picked).
+- New "Automatique" / "Automatic" pill in Onboarding and Profile lets users reset to browser detection at any time. Highlighted state clearly shows whether the current language is auto-detected or user-chosen.
+- Cross-tab sync: changing language in one tab updates all other open tabs via the `storage` event listener.
