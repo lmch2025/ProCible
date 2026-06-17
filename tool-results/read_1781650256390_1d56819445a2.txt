@@ -1,0 +1,477 @@
+     1→/**
+     2→ * In-memory mock Prisma client used as a fallback when the SQLite database
+     3→ * is unavailable (e.g. on Vercel serverless where the filesystem is read-only).
+     4→ *
+     5→ * Implements the subset of the Prisma client API used by the admin routes:
+     6→ *  - findMany, findUnique, count, create, update, updateMany, delete, deleteMany, upsert
+     7→ *  - where: equality, { contains }, OR, AND
+     8→ *  - select, include (with _count), orderBy, skip, take
+     9→ *
+    10→ * The data is seeded once per cold start and stays in module scope. Writes are
+    11→ * applied to the in-memory store so the admin UI remains fully interactive
+    12→ * during a single session (changes do not persist across deployments).
+    13→ */
+    14→
+    15→type AnyRecord = Record<string, any>
+    16→
+    17→// --- Seed data -------------------------------------------------------------
+    18→
+    19→const now = Date.now()
+    20→const daysAgo = (d: number) => new Date(now - d * 24 * 60 * 60 * 1000)
+    21→
+    22→const USERS: AnyRecord[] = [
+    23→  { id: 'u1', phone: '+237690000001', name: 'Awa Ngono', plan: 'pro', credits: 42, onboarded: true, createdAt: daysAgo(2), updatedAt: daysAgo(1) },
+    24→  { id: 'u2', phone: '+237690000002', name: 'Jean Ekambi', plan: 'starter', credits: 18, onboarded: true, createdAt: daysAgo(5), updatedAt: daysAgo(3) },
+    25→  { id: 'u3', phone: '+237690000003', name: 'Fatou Diallo', plan: 'free', credits: 5, onboarded: false, createdAt: daysAgo(8), updatedAt: daysAgo(8) },
+    26→  { id: 'u4', phone: '+237690000004', name: 'Paul Mballa', plan: 'pro', credits: 30, onboarded: true, createdAt: daysAgo(12), updatedAt: daysAgo(6) },
+    27→  { id: 'u5', phone: '+237690000005', name: 'Sara Bello', plan: 'starter', credits: 9, onboarded: true, createdAt: daysAgo(15), updatedAt: daysAgo(10) },
+    28→  { id: 'u6', phone: '+237690000006', name: 'Ibrahim Toure', plan: 'free', credits: 2, onboarded: false, createdAt: daysAgo(20), updatedAt: daysAgo(20) },
+    29→]
+    30→
+    31→const LEADS: AnyRecord[] = [
+    32→  { id: 'l1', name: 'Restaurant Le Baobab', business: 'Restaurant', sector: 'Restauration', city: 'Douala', phone: '+237699000001', whatsapp: '+237699000001', email: 'baobab@example.cm', address: 'Akwa, Douala', source: 'maps', stage: 'nouveau', notes: null, lastContactAt: null, nextFollowUpAt: daysAgo(-2), contactCount: 0, aiSuggestion: 'Premier contact recommandé par WhatsApp', score: 72, userId: 'u1', createdAt: daysAgo(1), updatedAt: daysAgo(1) },
+    33→  { id: 'l2', name: 'Pharmacie du Centre', business: 'Pharmacie', sector: 'Santé', city: 'Yaoundé', phone: '+237699000002', whatsapp: '+237699000002', email: 'centre@example.cm', address: 'Centre-ville, Yaoundé', source: 'facebook', stage: 'contacte', notes: 'Intéressé', lastContactAt: daysAgo(3), nextFollowUpAt: daysAgo(-1), contactCount: 1, aiSuggestion: 'Relancer par appel', score: 65, userId: 'u1', createdAt: daysAgo(4), updatedAt: daysAgo(3) },
+    34→  { id: 'l3', name: 'Garage Express', business: 'Garage auto', sector: 'Automobile', city: 'Bafoussam', phone: '+237699000003', whatsapp: '+237699000003', email: null, address: 'Marché A, Bafoussam', source: 'maps', stage: 'en_discussion', notes: 'Négociation en cours', lastContactAt: daysAgo(2), nextFollowUpAt: daysAgo(-3), contactCount: 2, aiSuggestion: 'Proposer une démo', score: 81, userId: 'u2', createdAt: daysAgo(6), updatedAt: daysAgo(2) },
+    35→  { id: 'l4', name: 'Boutique Élégance', business: 'Mode', sector: 'Vêtements', city: 'Douala', phone: '+237699000004', whatsapp: '+237699000004', email: 'elegance@example.cm', address: 'Bonapriso, Douala', source: 'instagram', stage: 'a_relancer', notes: 'Pas de réponse', lastContactAt: daysAgo(7), nextFollowUpAt: daysAgo(0), contactCount: 1, aiSuggestion: 'Envoyer un message de rappel', score: 45, userId: 'u2', createdAt: daysAgo(10), updatedAt: daysAgo(7) },
+    36→  { id: 'l5', name: 'Café Romarin', business: 'Café', sector: 'Restauration', city: 'Yaoundé', phone: '+237699000005', whatsapp: '+237699000005', email: null, address: 'Bastos, Yaoundé', source: 'maps', stage: 'gagne', notes: 'Client signé', lastContactAt: daysAgo(5), nextFollowUpAt: null, contactCount: 4, aiSuggestion: 'Suivi satisfaction', score: 95, userId: 'u4', createdAt: daysAgo(14), updatedAt: daysAgo(5) },
+    37→  { id: 'l6', name: 'Salon Beauté Plus', business: 'Salon', sector: 'Beauté', city: 'Douala', phone: '+237699000006', whatsapp: '+237699000006', email: null, address: 'Akwa, Douala', source: 'facebook', stage: 'perdu', notes: 'Budget insuffisant', lastContactAt: daysAgo(8), nextFollowUpAt: null, contactCount: 2, aiSuggestion: null, score: 20, userId: 'u5', createdAt: daysAgo(18), updatedAt: daysAgo(8) },
+    38→  { id: 'l7', name: 'Librairie Savoir', business: 'Librairie', sector: 'Éducation', city: 'Bafoussam', phone: '+237699000007', whatsapp: '+237699000007', email: 'savoir@example.cm', address: 'Centre, Bafoussam', source: 'maps', stage: 'nouveau', notes: null, lastContactAt: null, nextFollowUpAt: daysAgo(-4), contactCount: 0, aiSuggestion: 'Premier contact par WhatsApp', score: 58, userId: 'u3', createdAt: daysAgo(2), updatedAt: daysAgo(2) },
+    39→  { id: 'l8', name: 'Pâtisserie Dorée', business: 'Pâtisserie', sector: 'Restauration', city: 'Yaoundé', phone: '+237699000008', whatsapp: '+237699000008', email: null, address: 'Mvan, Yaoundé', source: 'instagram', stage: 'contacte', notes: 'Demande de devis', lastContactAt: daysAgo(1), nextFollowUpAt: daysAgo(-2), contactCount: 1, aiSuggestion: 'Envoyer le devis', score: 74, userId: 'u4', createdAt: daysAgo(3), updatedAt: daysAgo(1) },
+    40→]
+    41→
+    42→const CONTACTS: AnyRecord[] = [
+    43→  { id: 'c1', type: 'whatsapp', content: 'Bonjour, je vous contacte concernant...', aiGenerated: true, leadId: 'l2', createdAt: daysAgo(3) },
+    44→  { id: 'c2', type: 'appel', content: 'Discussion de 15 min sur les offres', aiGenerated: false, leadId: 'l3', createdAt: daysAgo(2) },
+    45→  { id: 'c3', type: 'email', content: 'Devis envoyé', aiGenerated: false, leadId: 'l5', createdAt: daysAgo(6) },
+    46→  { id: 'c4', type: 'note', content: 'Client très intéressé, à recontacter', aiGenerated: false, leadId: 'l5', createdAt: daysAgo(5) },
+    47→  { id: 'c5', type: 'whatsapp', content: 'Rappel envoyé', aiGenerated: true, leadId: 'l4', createdAt: daysAgo(7) },
+    48→]
+    49→
+    50→const CAMPAIGNS: AnyRecord[] = [
+    51→  { id: 'cmp1', productName: 'Cosmétiques naturels', images: '', city: 'Douala', locations: 'CM:Douala,CM:Yaoundé', status: 'active', leadsFound: 24, userId: 'u1', createdAt: daysAgo(7), updatedAt: daysAgo(1) },
+    52→  { id: 'cmp2', productName: 'Pièces auto', images: '', city: 'Yaoundé', locations: 'CM:Yaoundé,CM:Garoua,SN::all', status: 'active', leadsFound: 18, userId: 'u2', createdAt: daysAgo(10), updatedAt: daysAgo(2) },
+    53→  { id: 'cmp3', productName: 'Mode femme', images: '', city: 'Bafoussam', locations: 'CM:Bafoussam,CI:Abidjan', status: 'paused', leadsFound: 12, userId: 'u5', createdAt: daysAgo(15), updatedAt: daysAgo(8) },
+    54→  { id: 'cmp4', productName: 'Équipements bureau', images: '', city: 'Douala', locations: 'CM::all', status: 'completed', leadsFound: 35, userId: 'u4', createdAt: daysAgo(20), updatedAt: daysAgo(5) },
+    55→]
+    56→
+    57→const NOTIFICATIONS: AnyRecord[] = [
+    58→  { id: 'n1', type: 'follow_up', title: 'Relance prévue', message: 'Pharmacie du Centre à rappeler aujourd\'hui', read: false, leadId: 'l2', userId: 'u1', createdAt: daysAgo(1) },
+    59→  { id: 'n2', type: 'new_leads', title: 'Nouveaux clients', message: '3 nouveaux clients trouvés à Douala', read: false, leadId: null, userId: 'u1', createdAt: daysAgo(2) },
+    60→  { id: 'n3', type: 'ai_suggestion', title: 'Suggestion IA', message: 'Garage Express : proposer une démo', read: true, leadId: 'l3', userId: 'u2', createdAt: daysAgo(3) },
+    61→  { id: 'n4', type: 'relance', title: 'Client à relancer', message: 'Boutique Élégance sans réponse depuis 7 jours', read: false, leadId: 'l4', userId: 'u2', createdAt: daysAgo(4) },
+    62→  { id: 'n5', type: 'system', title: 'Bienvenue', message: 'Configurez vos préférences de prospection', read: true, leadId: null, userId: 'u3', createdAt: daysAgo(8) },
+    63→]
+    64→
+    65→const AUDIT_LOGS: AnyRecord[] = [
+    66→  { id: 'a1', action: 'login', entity: 'admin', entityId: null, adminEmail: 'admin@procible.app', details: JSON.stringify({ method: 'password' }), ip: '127.0.0.1', createdAt: daysAgo(0) },
+    67→  { id: 'a2', action: 'update', entity: 'lead', entityId: 'l3', adminEmail: 'admin@procible.app', details: JSON.stringify({ stage: 'en_discussion' }), ip: '127.0.0.1', createdAt: daysAgo(1) },
+    68→  { id: 'a3', action: 'export', entity: 'users', entityId: null, adminEmail: 'admin@procible.app', details: JSON.stringify({ records: 6 }), ip: '127.0.0.1', createdAt: daysAgo(2) },
+    69→  { id: 'a4', action: 'create', entity: 'notification', entityId: 'n1', adminEmail: 'admin@procible.app', details: null, ip: '127.0.0.1', createdAt: daysAgo(3) },
+    70→  { id: 'a5', action: 'bulk', entity: 'credits', entityId: null, adminEmail: 'admin@procible.app', details: JSON.stringify({ amount: 5, count: 3 }), ip: '127.0.0.1', createdAt: daysAgo(4) },
+    71→]
+    72→
+    73→const SETTINGS: AnyRecord[] = [
+    74→  { id: 's1', key: 'openrouter_models', value: '7', description: 'Number of AI models available', updatedAt: daysAgo(10) },
+    75→  { id: 's2', key: 'free_credits_on_signup', value: '5', description: 'Credits given to new users', updatedAt: daysAgo(10) },
+    76→  { id: 's3', key: 'max_leads_per_campaign', value: '50', description: 'Maximum leads per prospection campaign', updatedAt: daysAgo(8) },
+    77→]
+    78→
+    79→const CREDIT_RULES: AnyRecord[] = [
+    80→  { id: 'cr1', action: 'prospection.launch', label: 'Lancer une campagne de prospection', cost: 5, description: 'Génération de 3 à 11 leads par ville/pays ciblé', enabled: true, freeQuotaPerDay: 0, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+    81→  { id: 'cr2', action: 'ai.draft', label: 'Génération de message IA (WhatsApp/Appel/Email)', cost: 1, description: 'Draft personnalisé pour un lead', enabled: true, freeQuotaPerDay: 3, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+    82→  { id: 'cr3', action: 'ai.analyze', label: 'Analyse IA & scoring de lead', cost: 2, description: 'Score 0-100 + suggestion de prochaine action', enabled: true, freeQuotaPerDay: 5, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+    83→  { id: 'cr4', action: 'lead.export', label: 'Export CSV de leads', cost: 3, description: 'Export de la liste filtrée au format CSV', enabled: true, freeQuotaPerDay: 0, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+    84→  { id: 'cr5', action: 'lead.reveal_phone', label: 'Révéler le téléphone d\'un lead', cost: 1, description: 'Débloque le n° de téléphone/WhatsApp d\'un lead', enabled: true, freeQuotaPerDay: 10, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+    85→  { id: 'cr6', action: 'ai.suggestion', label: 'Suggestion IA de relance', cost: 1, description: 'Suggestion personnalisée pour relancer un lead', enabled: true, freeQuotaPerDay: 5, createdAt: daysAgo(15), updatedAt: daysAgo(5) },
+    86→  { id: 'cr7', action: 'ai.follow_up_plan', label: 'Plan de suivi hiérarchique IA par lead', cost: 3, description: 'Plan multi-étapes (J+1, J+3, J+7, J+14, J+30) avec scripts prêts à envoyer, conseils tactiques, et notifications intelligentes programmées automatiquement', enabled: true, freeQuotaPerDay: 1, createdAt: daysAgo(2), updatedAt: daysAgo(1) },
+    87→  { id: 'cr8', action: 'ai.campaign_interpret', label: 'Interprétation IA de campagne (ciblage acheteurs vs concurrents)', cost: 0, description: 'Incluse gratuitement dans chaque lancement de campagne — l\'IA transforme la description en requête ciblée qui trouve les acheteurs, pas les concurrents', enabled: true, freeQuotaPerDay: 0, createdAt: daysAgo(2), updatedAt: daysAgo(1) },
+    88→]
+    89→
+    90→const CREDIT_TRANSACTIONS: AnyRecord[] = [
+    91→  { id: 'ct1', amount: 5, balanceAfter: 5, action: 'signup.bonus', label: 'Crédits de bienvenue', entityId: null, idempotencyKey: null, note: 'Inscription', userId: 'u1', createdAt: daysAgo(2) },
+    92→  { id: 'ct2', amount: 50, balanceAfter: 55, action: 'purchase.pack', label: 'Achat pack 50 crédits', entityId: null, idempotencyKey: null, note: 'Mobile Money', userId: 'u1', createdAt: daysAgo(2) },
+    93→  { id: 'ct3', amount: -5, balanceAfter: 50, action: 'prospection.launch', label: 'Lancer une campagne de prospection', entityId: 'cmp1', idempotencyKey: null, note: null, userId: 'u1', createdAt: daysAgo(7) },
+    94→  { id: 'ct4', amount: -5, balanceAfter: 45, action: 'prospection.launch', label: 'Lancer une campagne de prospection', entityId: 'cmp2', idempotencyKey: null, note: null, userId: 'u2', createdAt: daysAgo(10) },
+    95→  { id: 'ct5', amount: -3, balanceAfter: 42, action: 'prospection.launch', label: 'Lancer une campagne de prospection', entityId: 'cmp3', idempotencyKey: null, note: null, userId: 'u5', createdAt: daysAgo(15) },
+    96→  { id: 'ct6', amount: -1, balanceAfter: 41, action: 'ai.draft', label: 'Génération de message IA (WhatsApp/Appel/Email)', entityId: 'l2', idempotencyKey: null, note: null, userId: 'u1', createdAt: daysAgo(3) },
+    97→  { id: 'ct7', amount: -2, balanceAfter: 39, action: 'ai.analyze', label: 'Analyse IA & scoring de lead', entityId: 'l3', idempotencyKey: null, note: null, userId: 'u2', createdAt: daysAgo(2) },
+    98→  { id: 'ct8', amount: 20, balanceAfter: 42, action: 'admin.grant', label: 'Crédits offerts par l\'admin', entityId: null, idempotencyKey: null, note: 'Bonus fidélité', userId: 'u1', createdAt: daysAgo(1) },
+    99→]
+   100→
+   101→const PREFERENCES: AnyRecord[] = [
+   102→  { id: 'p1', sectors: 'Restauration,Santé,Beauté', cities: 'Douala,Yaoundé', businessType: 'PME', userId: 'u1', createdAt: daysAgo(2), updatedAt: daysAgo(1) },
+   103→  { id: 'p2', sectors: 'Automobile,Mode', cities: 'Bafoussam,Douala', businessType: 'Commerce', userId: 'u2', createdAt: daysAgo(5), updatedAt: daysAgo(3) },
+   104→]
+   105→
+   106→const ADMINS: AnyRecord[] = [
+   107→  { id: 'adm1', email: 'admin@procible.app', name: 'Super Admin', role: 'super_admin', createdAt: daysAgo(30), updatedAt: daysAgo(1) },
+   108→]
+   109→
+   110→// --- Store -----------------------------------------------------------------
+   111→
+   112→const store: Record<string, AnyRecord[]> = {
+   113→  user: USERS,
+   114→  lead: LEADS,
+   115→  contactHistory: CONTACTS,
+   116→  prospectionCampaign: CAMPAIGNS,
+   117→  notification: NOTIFICATIONS,
+   118→  auditLog: AUDIT_LOGS,
+   119→  appSettings: SETTINGS,
+   120→  preference: PREFERENCES,
+   121→  admin: ADMINS,
+   122→  creditRule: CREDIT_RULES,
+   123→  creditTransaction: CREDIT_TRANSACTIONS,
+   124→}
+   125→
+   126→const idCounters: Record<string, number> = {}
+   127→
+   128→function genId(model: string): string {
+   129→  idCounters[model] = (idCounters[model] || 0) + 1
+   130→  return `${model}_${Date.now().toString(36)}_${idCounters[model]}`
+   131→}
+   132→
+   133→// --- Where matching --------------------------------------------------------
+   134→
+   135→function matchValue(recordVal: any, condition: any): boolean {
+   136→  if (condition === null || condition === undefined) {
+   137→    return recordVal === null || recordVal === undefined
+   138→  }
+   139→  if (typeof condition === 'object' && !Array.isArray(condition)) {
+   140→    if (condition.contains !== undefined) {
+   141→      return String(recordVal ?? '').toLowerCase().includes(String(condition.contains).toLowerCase())
+   142→    }
+   143→    if (condition.gt !== undefined) return recordVal > condition.gt
+   144→    if (condition.gte !== undefined) return recordVal >= condition.gte
+   145→    if (condition.lt !== undefined) return recordVal < condition.lt
+   146→    if (condition.lte !== undefined) return recordVal <= condition.lte
+   147→    if (condition.in !== undefined) return Array.isArray(condition.in) && condition.in.includes(recordVal)
+   148→    if (condition.not !== undefined) return !matchValue(recordVal, condition.not)
+   149→  }
+   150→  return recordVal === condition
+   151→}
+   152→
+   153→function matchWhere(record: AnyRecord, where: AnyRecord | undefined): boolean {
+   154→  if (!where || Object.keys(where).length === 0) return true
+   155→  for (const [key, condition] of Object.entries(where)) {
+   156→    if (key === 'AND') {
+   157→      if (!Array.isArray(condition)) return false
+   158→      if (!condition.every((sub: AnyRecord) => matchWhere(record, sub))) return false
+   159→      continue
+   160→    }
+   161→    if (key === 'OR') {
+   162→      if (!Array.isArray(condition)) return false
+   163→      if (!condition.some((sub: AnyRecord) => matchWhere(record, sub))) return false
+   164→      continue
+   165→    }
+   166→    if (key === 'NOT') {
+   167→      if (typeof condition === 'object' && !Array.isArray(condition)) {
+   168→        if (matchWhere(record, condition)) return false
+   169→      }
+   170→      continue
+   171→    }
+   172→    if (!matchValue(record[key], condition)) return false
+   173→  }
+   174→  return true
+   175→}
+   176→
+   177→// --- Select / Include ------------------------------------------------------
+   178→
+   179→function applySelect(record: AnyRecord, select: AnyRecord | undefined): AnyRecord {
+   180→  if (!select) return { ...record }
+   181→  const out: AnyRecord = {}
+   182→  for (const [key, include] of Object.entries(select)) {
+   183→    if (key === '_count' && typeof include === 'object' && include) {
+   184→      const selectCounts = (include as AnyRecord).select || {}
+   185→      const counts: AnyRecord = {}
+   186→      for (const [relKey] of Object.entries(selectCounts)) {
+   187→        counts[relKey] = countRelation(record, relKey)
+   188→      }
+   189→      out._count = counts
+   190→      continue
+   191→    }
+   192→    out[key] = record[key]
+   193→  }
+   194→  return out
+   195→}
+   196→
+   197→function countRelation(record: AnyRecord, relKey: string): number {
+   198→  // Map plural relation name back to model
+   199→  const map: Record<string, string> = {
+   200→    leads: 'lead',
+   201→    contacts: 'contactHistory',
+   202→    campaigns: 'prospectionCampaign',
+   203→    notifications: 'notification',
+   204→  }
+   205→  const model = map[relKey] || relKey
+   206→  const all = store[model] || []
+   207→  if (relKey === 'leads' || relKey === 'campaigns' || relKey === 'notifications') {
+   208→    return all.filter(r => r.userId === record.id).length
+   209→  }
+   210→  if (relKey === 'contacts') {
+   211→    return all.filter(r => r.leadId === record.id).length
+   212→  }
+   213→  return all.length
+   214→}
+   215→
+   216→function applyInclude(record: AnyRecord, include: AnyRecord | undefined): AnyRecord {
+   217→  if (!include) return { ...record }
+   218→  const out: AnyRecord = { ...record }
+   219→  for (const [key, value] of Object.entries(include)) {
+   220→    if (key === '_count' && typeof value === 'object' && value) {
+   221→      const selectCounts = (value as AnyRecord).select || {}
+   222→      const counts: AnyRecord = {}
+   223→      for (const [relKey] of Object.entries(selectCounts)) {
+   224→        counts[relKey] = countRelation(record, relKey)
+   225→      }
+   226→      out._count = counts
+   227→      continue
+   228→    }
+   229→    if (key === 'user') {
+   230→      const u = store.user.find(x => x.id === record.userId)
+   231→      if (u && typeof value === 'object' && value !== null) {
+   232→        out.user = applySelect(u, (value as AnyRecord).select)
+   233→      } else {
+   234→        out.user = u ? { ...u } : null
+   235→      }
+   236→      continue
+   237→    }
+   238→    if (key === 'lead') {
+   239→      const l = store.lead.find(x => x.id === record.leadId)
+   240→      if (l && typeof value === 'object' && value !== null) {
+   241→        const nested = (value as AnyRecord).include || (value as AnyRecord).select
+   242→        if ((value as AnyRecord).include) out.lead = applyInclude(l, (value as AnyRecord).include)
+   243→        else if ((value as AnyRecord).select) out.lead = applySelect(l, (value as AnyRecord).select)
+   244→        else out.lead = { ...l }
+   245→      } else {
+   246→        out.lead = l ? { ...l } : null
+   247→      }
+   248→      continue
+   249→    }
+   250→    if (key === 'preferences') {
+   251→      out.preferences = store.preference.find(x => x.userId === record.id) || null
+   252→      continue
+   253→    }
+   254→    if (key === 'creditTransactions') {
+   255→      out.creditTransactions = store.creditTransaction
+   256→        .filter(x => x.userId === record.id)
+   257→        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+   258→      continue
+   259→    }
+   260→  }
+   261→  return out
+   262→}
+   263→
+   264→// --- Sorting ---------------------------------------------------------------
+   265→
+   266→function sortRecords(records: AnyRecord[], orderBy?: AnyRecord): AnyRecord[] {
+   267→  if (!orderBy) return records
+   268→  const entries = Object.entries(orderBy)
+   269→  if (entries.length === 0) return records
+   270→  return [...records].sort((a, b) => {
+   271→    for (const [key, dir] of entries) {
+   272→      const av = a[key]
+   273→      const bv = b[key]
+   274→      if (av === bv) continue
+   275→      let cmp = 0
+   276→      if (av === null || av === undefined) cmp = -1
+   277→      else if (bv === null || bv === undefined) cmp = 1
+   278→      else if (av < bv) cmp = -1
+   279→      else if (av > bv) cmp = 1
+   280→      if (cmp !== 0) return dir === 'desc' ? -cmp : cmp
+   281→    }
+   282→    return 0
+   283→  })
+   284→}
+   285→
+   286→// --- Model delegate --------------------------------------------------------
+   287→
+   288→class ModelDelegate {
+   289→  constructor(private model: string) {}
+   290→
+   291→  private collection(): AnyRecord[] {
+   292→    return store[this.model] || (store[this.model] = [])
+   293→  }
+   294→
+   295→  async findMany(args?: AnyRecord): Promise<AnyRecord[]> {
+   296→    let records = this.collection().filter(r => matchWhere(r, args?.where))
+   297→    records = sortRecords(records, args?.orderBy)
+   298→    if (args?.skip !== undefined) records = records.slice(args.skip)
+   299→    if (args?.take !== undefined) {
+   300→      records = args.take >= 0 ? records.slice(0, args.take) : records.slice(args.take)
+   301→    }
+   302→    return records.map(r => {
+   303→      let out = r
+   304→      if (args?.include) out = applyInclude(r, args.include)
+   305→      else if (args?.select) out = applySelect(r, args.select)
+   306→      else out = { ...r }
+   307→      return out
+   308→    })
+   309→  }
+   310→
+   311→  async findUnique(args: AnyRecord): Promise<AnyRecord | null> {
+   312→    const where = args?.where || {}
+   313→    const record = this.collection().find(r => {
+   314→      if (where.id !== undefined) return r.id === where.id
+   315→      // Try other unique fields
+   316→      for (const [k, v] of Object.entries(where)) {
+   317→        if (r[k] === v) return true
+   318→      }
+   319→      return false
+   320→    })
+   321→    if (!record) return null
+   322→    if (args?.include) return applyInclude(record, args.include)
+   323→    if (args?.select) return applySelect(record, args.select)
+   324→    return { ...record }
+   325→  }
+   326→
+   327→  async count(args?: AnyRecord): Promise<number> {
+   328→    return this.collection().filter(r => matchWhere(r, args?.where)).length
+   329→  }
+   330→
+   331→  async create(args: AnyRecord): Promise<AnyRecord> {
+   332→    const data = { ...args.data }
+   333→    if (!data.id) data.id = genId(this.model)
+   334→    if (!data.createdAt && (this.model !== 'appSettings' && this.model !== 'admin')) data.createdAt = new Date()
+   335→    if (!data.updatedAt && ['user', 'lead', 'prospectionCampaign', 'preference', 'admin', 'appSettings', 'creditRule'].includes(this.model)) {
+   336→      data.updatedAt = new Date()
+   337→    }
+   338→    // Apply defaults for missing fields
+   339→    const defaults: Record<string, AnyRecord> = {
+   340→      user: { plan: 'free', credits: 5, onboarded: false },
+   341→      lead: { source: 'maps', stage: 'nouveau', contactCount: 0, score: 50 },
+   342→      notification: { type: 'new_leads', read: false },
+   343→      prospectionCampaign: { status: 'active', leadsFound: 0 },
+   344→      contactHistory: { aiGenerated: false },
+   345→      admin: { role: 'admin' },
+   346→      creditRule: { cost: 1, enabled: true, freeQuotaPerDay: 0 },
+   347→      creditTransaction: { amount: 0, balanceAfter: 0 },
+   348→    }
+   349→    if (defaults[this.model]) {
+   350→      for (const [k, v] of Object.entries(defaults[this.model])) {
+   351→        if (data[k] === undefined) data[k] = v
+   352→      }
+   353→    }
+   354→    // ProspectionCampaign: mirror legacy `city` from first location entry.
+   355→    if (this.model === 'prospectionCampaign') {
+   356→      if (data.locations === undefined) data.locations = ''
+   357→      if (!data.city) {
+   358→        const firstLoc = String(data.locations).split(',')[0] || ''
+   359→        const [, city] = firstLoc.split(':')
+   360→        data.city = city && city !== 'all' ? city : ''
+   361→      }
+   362→    }
+   363→    this.collection().push(data)
+   364→    if (args?.include) return applyInclude(data, args.include)
+   365→    if (args?.select) return applySelect(data, args.select)
+   366→    return { ...data }
+   367→  }
+   368→
+   369→  async update(args: AnyRecord): Promise<AnyRecord> {
+   370→    const where = args?.where || {}
+   371→    const record = this.collection().find(r => {
+   372→      if (where.id !== undefined) return r.id === where.id
+   373→      for (const [k, v] of Object.entries(where)) if (r[k] === v) return true
+   374→      return false
+   375→    })
+   376→    if (!record) throw new Error(`Record not found in ${this.model}`)
+   377→    const data = args.data || {}
+   378→    for (const [k, v] of Object.entries(data)) {
+   379→      if (v && typeof v === 'object' && 'increment' in v) {
+   380→        record[k] = (record[k] || 0) + v.increment
+   381→      } else {
+   382→        record[k] = v
+   383→      }
+   384→    }
+   385→    if (this.model === 'prospectionCampaign') {
+   386→      if (record.locations !== undefined && !record.city) {
+   387→        const firstLoc = String(record.locations).split(',')[0] || ''
+   388→        const [, city] = firstLoc.split(':')
+   389→        record.city = city && city !== 'all' ? city : ''
+   390→      }
+   391→    }
+   392→    if (['user', 'lead', 'prospectionCampaign', 'preference', 'admin', 'appSettings', 'creditRule'].includes(this.model)) {
+   393→      record.updatedAt = new Date()
+   394→    }
+   395→    if (args?.include) return applyInclude(record, args.include)
+   396→    if (args?.select) return applySelect(record, args.select)
+   397→    return { ...record }
+   398→  }
+   399→
+   400→  async updateMany(args: AnyRecord): Promise<{ count: number }> {
+   401→    const matches = this.collection().filter(r => matchWhere(r, args?.where))
+   402→    const data = args.data || {}
+   403→    matches.forEach(record => {
+   404→      for (const [k, v] of Object.entries(data)) {
+   405→        if (v && typeof v === 'object' && 'increment' in v) {
+   406→          record[k] = (record[k] || 0) + v.increment
+   407→        } else {
+   408→          record[k] = v
+   409→        }
+   410→      }
+   411→    })
+   412→    return { count: matches.length }
+   413→  }
+   414→
+   415→  async delete(args: AnyRecord): Promise<AnyRecord> {
+   416→    const where = args?.where || {}
+   417→    const arr = this.collection()
+   418→    const idx = arr.findIndex(r => {
+   419→      if (where.id !== undefined) return r.id === where.id
+   420→      for (const [k, v] of Object.entries(where)) if (r[k] === v) return true
+   421→      return false
+   422→    })
+   423→    if (idx === -1) throw new Error(`Record not found in ${this.model}`)
+   424→    const [removed] = arr.splice(idx, 1)
+   425→    return { ...removed }
+   426→  }
+   427→
+   428→  async deleteMany(args: AnyRecord): Promise<{ count: number }> {
+   429→    const arr = this.collection()
+   430→    const matches = arr.filter(r => matchWhere(r, args?.where))
+   431→    const ids = new Set(matches.map(m => m.id))
+   432→    store[this.model] = arr.filter(r => !ids.has(r.id))
+   433→    return { count: matches.length }
+   434→  }
+   435→
+   436→  async upsert(args: AnyRecord): Promise<AnyRecord> {
+   437→    const where = args?.where || {}
+   438→    const existing = this.collection().find(r => {
+   439→      if (where.id !== undefined) return r.id === where.id
+   440→      for (const [k, v] of Object.entries(where)) if (r[k] === v) return true
+   441→      return false
+   442→    })
+   443→    if (existing) {
+   444→      const data = args.update?.data || {}
+   445→      for (const [k, v] of Object.entries(data)) {
+   446→        if (v && typeof v === 'object' && 'increment' in v) {
+   447→          existing[k] = (existing[k] || 0) + v.increment
+   448→        } else {
+   449→          existing[k] = v
+   450→        }
+   451→      }
+   452→      existing.updatedAt = new Date()
+   453→      return { ...existing }
+   454→    }
+   455→    return this.create({ data: args.create?.data || {} })
+   456→  }
+   457→}
+   458→
+   459→// --- Mock client -----------------------------------------------------------
+   460→
+   461→export const mockDb = {
+   462→  user: new ModelDelegate('user'),
+   463→  lead: new ModelDelegate('lead'),
+   464→  contactHistory: new ModelDelegate('contactHistory'),
+   465→  prospectionCampaign: new ModelDelegate('prospectionCampaign'),
+   466→  notification: new ModelDelegate('notification'),
+   467→  auditLog: new ModelDelegate('auditLog'),
+   468→  appSettings: new ModelDelegate('appSettings'),
+   469→  preference: new ModelDelegate('preference'),
+   470→  admin: new ModelDelegate('admin'),
+   471→  creditRule: new ModelDelegate('creditRule'),
+   472→  creditTransaction: new ModelDelegate('creditTransaction'),
+   473→  $disconnect: async () => {},
+   474→}
+   475→
+   476→export type MockDb = typeof mockDb
+   477→

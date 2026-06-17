@@ -1,0 +1,751 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { motion, AnimatePresence } from 'framer-motion'
+     4→     4→import { useProcibleStore, STAGE_CONFIG, STAGE_ORDER, type LeadStage } from '@/store/procible-store'
+     5→     5→import { Phone, MessageCircle, MapPin, Building2, ArrowLeft, Volume2, Clock, Copy, Check, ChevronDown, Send, FileText, Lightbulb, Zap, Coins, Loader2, Calendar, ChevronRight, Sparkles, Cpu } from 'lucide-react'
+     6→     6→import { useState, useEffect } from 'react'
+     7→     7→import ConfettiEffect from './ConfettiEffect'
+     8→     8→import { toast } from 'sonner'
+     9→     9→import { parseStoredSuggestion, modelDisplayName, modelBadgeColor } from '@/lib/ai-content'
+    10→    10→
+    11→    11→const sourceConfig: Record<string, { bg: string; text: string; label: string }> = {
+    12→    12→  maps: { bg: 'bg-[#4CAF50]', text: 'text-white', label: 'Google Maps' },
+    13→    13→  facebook: { bg: 'bg-[#1877F2]', text: 'text-white', label: 'Facebook' },
+    14→    14→  instagram: { bg: 'bg-[#E4405F]', text: 'text-white', label: 'Instagram' },
+    15→    15→  linkedin: { bg: 'bg-[#0A66C2]', text: 'text-white', label: 'LinkedIn' },
+    16→    16→}
+    17→    17→
+    18→    18→const contactTypeIcons: Record<string, { icon: typeof Phone; color: string; label: string }> = {
+    19→    19→  appel: { icon: Phone, color: 'text-[#2EC4B6]', label: 'Appel' },
+    20→    20→  whatsapp: { icon: MessageCircle, color: 'text-[#25D366]', label: 'WhatsApp' },
+    21→    21→  email: { icon: Send, color: 'text-[#6C3FA9]', label: 'Email' },
+    22→    22→  visite: { icon: MapPin, color: 'text-[#FF7B54]', label: 'Visite' },
+    23→    23→  note: { icon: FileText, color: 'text-[#FFB347]', label: 'Note' },
+    24→    24→}
+    25→    25→
+    26→    26→// Follow-up plan types — mirror the AI service contract
+    27→    27→interface FollowUpStage {
+    28→    28→  step: number
+    29→    29→  dayOffset: number
+    30→    30→  channel: 'whatsapp' | 'appel' | 'email' | 'visite' | 'sms'
+    31→    31→  objective: string
+    32→    32→  script: string
+    33→    33→  tips: string[]
+    34→    34→}
+    35→    35→interface FollowUpPlan {
+    36→    36→  leadId: string
+    37→    37→  stages: FollowUpStage[]
+    38→    38→  strategy: string
+    39→    39→  model: string
+    40→    40→  createdAt: string
+    41→    41→}
+    42→    42→
+    43→    43→const channelConfig: Record<FollowUpStage['channel'], { icon: typeof Phone; color: string; bg: string; label: string }> = {
+    44→    44→  whatsapp: { icon: MessageCircle, color: 'text-[#25D366]', bg: 'bg-[#25D366]/10', label: 'WhatsApp' },
+    45→    45→  appel: { icon: Phone, color: 'text-[#2EC4B6]', bg: 'bg-[#2EC4B6]/10', label: 'Appel' },
+    46→    46→  email: { icon: Send, color: 'text-[#6C3FA9]', bg: 'bg-[#6C3FA9]/10', label: 'Email' },
+    47→    47→  visite: { icon: MapPin, color: 'text-[#FF7B54]', bg: 'bg-[#FF7B54]/10', label: 'Visite' },
+    48→    48→  sms: { icon: MessageCircle, color: 'text-[#FFB347]', bg: 'bg-[#FFB347]/10', label: 'SMS' },
+    49→    49→}
+    50→    50→
+    51→    51→export default function LeadDetail() {
+    52→    52→  const { leads, selectedLeadId, updateLeadStage, goBack, decrementCredits, aiDraft, aiDraftLoading, aiModel, setAiDraft, setAiDraftLoading, setAiModel, logContact, credits, setCredits } = useProcibleStore()
+    53→    53→  const [showConfetti, setShowConfetti] = useState(false)
+    54→    54→  const [copied, setCopied] = useState(false)
+    55→    55→  const [showStagePicker, setShowStagePicker] = useState(false)
+    56→    56→  const [showAiDraft, setShowAiDraft] = useState(false)
+    57→    57→  const [aiChannel, setAiChannel] = useState<'whatsapp' | 'appel' | 'email'>('whatsapp')
+    58→    58→
+    59→    59→  // Follow-up plan state
+    60→    60→  const [plan, setPlan] = useState<FollowUpPlan | null>(null)
+    61→    61→  const [planLoading, setPlanLoading] = useState(false)
+    62→    62→  const [expandedStage, setExpandedStage] = useState<number | null>(null)
+    63→    63→  const [completedStages, setCompletedStages] = useState<Set<number>>(new Set())
+    64→    64→  const [copiedStage, setCopiedStage] = useState<number | null>(null)
+    65→    65→
+    66→    66→  const lead = leads.find(l => l.id === selectedLeadId)
+    67→    67→
+    68→    68→  // Load existing follow-up plan on mount / lead change
+    69→    69→  useEffect(() => {
+    70→    70→    setPlan(null)
+    71→    71→    setExpandedStage(null)
+    72→    72→    setCompletedStages(new Set())
+    73→    73→    if (!lead) return
+    74→    74→    let cancelled = false
+    75→    75→    ;(async () => {
+    76→    76→      try {
+    77→    77→        const res = await fetch(`/api/ai/follow-up-plan?leadId=${lead.id}`)
+    78→    78→        if (!res.ok) return
+    79→    79→        const data = await res.json()
+    80→    80→        if (!cancelled && data.hasPlan && data.plan) {
+    81→    81→          setPlan(data.plan)
+    82→    82→        }
+    83→    83→      } catch {
+    84→    84→        /* silent */
+    85→    85→      }
+    86→    86→    })()
+    87→    87→    return () => { cancelled = true }
+    88→    88→  }, [lead?.id])
+    89→    89→
+    90→    90→  const handleGeneratePlan = async () => {
+    91→    91→    if (!lead) return
+    92→    92→    setPlanLoading(true)
+    93→    93→    try {
+    94→    94→      const res = await fetch('/api/ai/follow-up-plan', {
+    95→    95→        method: 'POST',
+    96→    96→        headers: { 'Content-Type': 'application/json' },
+    97→    97→        body: JSON.stringify({ leadId: lead.id }),
+    98→    98→      })
+    99→    99→      if (res.ok) {
+   100→   100→        const data = await res.json()
+   101→   101→        if (data.plan) setPlan(data.plan)
+   102→   102→        if (typeof data.balanceAfter === 'number') setCredits(data.balanceAfter)
+   103→   103→        toast.success(
+   104→   104→          `Plan de suivi généré ! ${data.plan?.stages.length || 0} étapes programmées.`,
+   105→   105→          { description: data.creditsUsed > 0 ? `−${data.creditsUsed} crédits${data.creditsFreeQuotaUsed ? ' (quota gratuit)' : ''}` : 'Gratuit (quota)' },
+   106→   106→        )
+   107→   107→      } else if (res.status === 402) {
+   108→   108→        const err = await res.json().catch(() => ({}))
+   109→   109→        toast.error(err.error || 'Crédits insuffisants', {
+   110→   110→          description: err.balance !== undefined ? `Solde : ${err.balance} · Requis : ${err.required}` : undefined,
+   111→   111→          duration: 6000,
+   112→   112→        })
+   113→   113→      } else {
+   114→   114→        const err = await res.json().catch(() => ({}))
+   115→   115→        toast.error(err.error || 'Échec génération du plan')
+   116→   116→      }
+   117→   117→    } catch {
+   118→   118→      toast.error('Erreur de connexion')
+   119→   119→    }
+   120→   120→    setPlanLoading(false)
+   121→   121→  }
+   122→   122→
+   123→   123→  const handleCopyStageScript = (stage: FollowUpStage) => {
+   124→   124→    navigator.clipboard.writeText(stage.script)
+   125→   125→    setCopiedStage(stage.step)
+   126→   126→    setTimeout(() => setCopiedStage(null), 2000)
+   127→   127→    toast.success('Script copié dans le presse-papier')
+   128→   128→  }
+   129→   129→
+   130→   130→  const handleExecuteStage = (stage: FollowUpStage) => {
+   131→   131→    if (!lead) return
+   132→   132→    // Log the contact in CRM
+   133→   133→    logContact(lead.id, stage.channel === 'sms' ? 'whatsapp' : stage.channel, stage.script, false)
+   134→   134→    setCompletedStages((prev) => new Set(prev).add(stage.step))
+   135→   135→    // Open the channel
+   136→   136→    if (stage.channel === 'appel' && lead.phone) {
+   137→   137→      window.open(`tel:${lead.phone}`, '_self')
+   138→   138→    } else if (stage.channel === 'whatsapp' || stage.channel === 'sms') {
+   139→   139→      const phone = lead.whatsapp || lead.phone || ''
+   140→   140→      const text = encodeURIComponent(stage.script)
+   141→   141→      window.open(`https://wa.me/${phone.replace(/\s|\+/g, '')}?text=${text}`, '_blank')
+   142→   142→    } else if (stage.channel === 'email' && lead.email) {
+   143→   143→      const subject = encodeURIComponent(stage.objective)
+   144→   144→      const body = encodeURIComponent(stage.script)
+   145→   145→      window.open(`mailto:${lead.email}?subject=${subject}&body=${body}`, '_blank')
+   146→   146→    }
+   147→   147→    toast.success(`Étape ${stage.step} marquée comme effectuée`)
+   148→   148→  }
+   149→   149→
+   150→   150→  if (!lead) {
+   151→   151→    return (
+   152→   152→      <div className="flex items-center justify-center h-full">
+   153→   153→        <p className="text-muted-foreground">Client introuvable</p>
+   154→   154→      </div>
+   155→   155→    )
+   156→   156→  }
+   157→   157→
+   158→   158→  const stageConfig = STAGE_CONFIG[lead.stage]
+   159→   159→  const contacts = lead.contacts || []
+   160→   160→
+   161→   161→  const daysSince = lead.lastContactAt
+   162→   162→    ? Math.floor((Date.now() - new Date(lead.lastContactAt).getTime()) / (1000 * 60 * 60 * 24))
+   163→   163→    : null
+   164→   164→
+   165→   165→  const handleGenerateDraft = async (channel: 'whatsapp' | 'appel' | 'email') => {
+   166→   166→    setAiDraftLoading(true)
+   167→   167→    setAiChannel(channel)
+   168→   168→    setShowAiDraft(true)
+   169→   169→    try {
+   170→   170→      const res = await fetch('/api/ai/draft', {
+   171→   171→        method: 'POST',
+   172→   172→        headers: { 'Content-Type': 'application/json' },
+   173→   173→        body: JSON.stringify({ leadId: lead.id, channel }),
+   174→   174→      })
+   175→   175→      if (res.ok) {
+   176→   176→        const data = await res.json()
+   177→   177→        setAiDraft(data.draft)
+   178→   178→        // Store the model id (not the display name) so the UI badge can
+   179→   179→        // derive both the color and the display label.
+   180→   180→        setAiModel(data.modelId || data.model || 'local-fallback')
+   181→   181→      } else {
+   182→   182→        const fallbacks: Record<string, string> = {
+   183→   183→          whatsapp: `Bonjour ${lead.name} ! Je me permets de vous contacter suite à la découverte de votre activité${lead.business ? ` "${lead.business}"` : ''}. Seriez-vous disponible pour un échange rapide cette semaine ?`,
+   184→   184→          appel: `Bonjour ${lead.name}, je vous appelle concernant votre activité${lead.business ? ` "${lead.business}"` : ''}. J'aimerais vous présenter une opportunité de collaboration. Quand seriez-vous disponible ?`,
+   185→   185→          email: `Objet : Opportunité de collaboration\n\nBonjour ${lead.name},\n\nJ'ai découvert votre activité${lead.business ? ` "${lead.business}"` : ''} et je pense qu'il y a des synergies possibles.\n\nSeriez-vous disponible pour un échange ?\n\nCordialement`,
+   186→   186→        }
+   187→   187→        setAiDraft(fallbacks[channel])
+   188→   188→        setAiModel('local-fallback')
+   189→   189→      }
+   190→   190→    } catch {
+   191→   191→      setAiDraft(`Bonjour ${lead.name} ! Je souhaiterais échanger avec vous concernant une opportunité de collaboration.`)
+   192→   192→      setAiModel('local-fallback')
+   193→   193→    }
+   194→   194→    setAiDraftLoading(false)
+   195→   195→  }
+   196→   196→
+   197→   197→  const handleCopyDraft = () => {
+   198→   198→    if (aiDraft) {
+   199→   199→      navigator.clipboard.writeText(aiDraft)
+   200→   200→      setCopied(true)
+   201→   201→      setTimeout(() => setCopied(false), 2000)
+   202→   202→    }
+   203→   203→  }
+   204→   204→
+   205→   205→  const handleLogAndAction = (type: 'appel' | 'whatsapp') => {
+   206→   206→    logContact(lead.id, type)
+   207→   207→    decrementCredits()
+   208→   208→
+   209→   209→    if (type === 'appel' && lead.phone) {
+   210→   210→      window.open(`tel:${lead.phone}`, '_self')
+   211→   211→    } else if (type === 'whatsapp') {
+   212→   212→      const phone = lead.whatsapp || lead.phone || ''
+   213→   213→      window.open(`https://wa.me/${phone.replace(/\s|\+/g, '')}`, '_blank')
+   214→   214→    }
+   215→   215→  }
+   216→   216→
+   217→   217→  const handleStageChange = (stage: LeadStage) => {
+   218→   218→    updateLeadStage(lead.id, stage)
+   219→   219→    if (stage === 'gagne') {
+   220→   220→      setShowConfetti(true)
+   221→   221→      setTimeout(() => setShowConfetti(false), 1500)
+   222→   222→    }
+   223→   223→    fetch('/api/crm/leads', {
+   224→   224→      method: 'PATCH',
+   225→   225→      headers: { 'Content-Type': 'application/json' },
+   226→   226→      body: JSON.stringify({ id: lead.id, stage }),
+   227→   227→    }).catch(() => {})
+   228→   228→    setShowStagePicker(false)
+   229→   229→  }
+   230→   230→
+   231→   231→  const handleSpeak = () => {
+   232→   232→    const utterance = new SpeechSynthesisUtterance(
+   233→   233→      `${lead.name}. ${lead.business || ''}. Secteur: ${lead.sector || ''}. Ville: ${lead.city || ''}. Étape: ${stageConfig.label}. Score: ${lead.score} sur 100.`
+   234→   234→    )
+   235→   235→    utterance.lang = 'fr-FR'
+   236→   236→    speechSynthesis.speak(utterance)
+   237→   237→  }
+   238→   238→
+   239→   239→  const scoreColor = lead.score >= 80 ? '#4CAF50' : lead.score >= 50 ? '#FFB347' : '#EF4444'
+   240→   240→
+   241→   241→  return (
+   242→   242→    <div className="pb-28">
+   243→   243→      {showConfetti && <ConfettiEffect />}
+   244→   244→
+   245→   245→      {/* Header - sticky */}
+   246→   246→      <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-xl px-5 pt-4 pb-3 flex items-center gap-3">
+   247→   247→        <button onClick={goBack} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+   248→   248→          <ArrowLeft className="w-5 h-5 text-secondary-foreground" />
+   249→   249→        </button>
+   250→   250→        <h1 className="text-lg font-bold flex-1">Détail du client</h1>
+   251→   251→        <button onClick={handleSpeak} className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+   252→   252→          <Volume2 className="w-4 h-4 text-secondary-foreground" />
+   253→   253→        </button>
+   254→   254→      </div>
+   255→   255→
+   256→   256→      {/* Lead Card */}
+   257→   257→      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="px-5 py-3">
+   258→   258→        <div className="bg-card rounded-3xl shadow-xl border border-border/30 overflow-hidden">
+   259→   259→          <div className={`h-2 w-full ${sourceConfig[lead.source]?.bg || 'bg-[#4CAF50]'}`} />
+   260→   260→          <div className="p-5">
+   261→   261→            <div className="flex items-start gap-4 mb-4">
+   262→   262→              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+   263→   263→                {lead.name.charAt(0)}
+   264→   264→              </div>
+   265→   265→              <div className="flex-1">
+   266→   266→                <h2 className="text-xl font-bold">{lead.name}</h2>
+   267→   267→                {lead.business && (
+   268→   268→                  <p className="text-muted-foreground flex items-center gap-1.5 mt-0.5">
+   269→   269→                    <Building2 className="w-3.5 h-3.5" />{lead.business}
+   270→   270→                  </p>
+   271→   271→                )}
+   272→   272→              </div>
+   273→   273→              <div className="flex flex-col items-center">
+   274→   274→                <svg width="44" height="44" className="transform -rotate-90">
+   275→   275→                  <circle cx="22" cy="22" r="18" fill="none" stroke="var(--border)" strokeWidth="4" />
+   276→   276→                  <circle cx="22" cy="22" r="18" fill="none" stroke={scoreColor} strokeWidth="4" strokeDasharray={`${(lead.score / 100) * 113} 113`} strokeLinecap="round" />
+   277→   277→                </svg>
+   278→   278→                <span className="text-[10px] font-bold mt-0.5" style={{ color: scoreColor }}>{lead.score}</span>
+   279→   279→              </div>
+   280→   280→            </div>
+   281→   281→
+   282→   282→            {/* Stage selector */}
+   283→   283→            <div className="relative mb-4">
+   284→   284→              <button
+   285→   285→                onClick={() => setShowStagePicker(!showStagePicker)}
+   286→   286→                className={`w-full px-4 py-2.5 rounded-xl ${stageConfig.bg} ${stageConfig.color} font-semibold text-sm flex items-center justify-between`}
+   287→   287→              >
+   288→   288→                <span className="flex items-center gap-2">
+   289→   289→                  <span>{stageConfig.icon}</span>
+   290→   290→                  {stageConfig.label}
+   291→   291→                </span>
+   292→   292→                <ChevronDown className={`w-4 h-4 transition-transform ${showStagePicker ? 'rotate-180' : ''}`} />
+   293→   293→              </button>
+   294→   294→
+   295→   295→              <AnimatePresence>
+   296→   296→                {showStagePicker && (
+   297→   297→                  <motion.div
+   298→   298→                    initial={{ opacity: 0, height: 0 }}
+   299→   299→                    animate={{ opacity: 1, height: 'auto' }}
+   300→   300→                    exit={{ opacity: 0, height: 0 }}
+   301→   301→                    className="absolute top-full left-0 right-0 z-20 mt-1 bg-card rounded-xl shadow-lg border border-border/50 overflow-hidden"
+   302→   302→                  >
+   303→   303→                    {STAGE_ORDER.map((stage) => {
+   304→   304→                      const config = STAGE_CONFIG[stage]
+   305→   305→                      return (
+   306→   306→                        <button
+   307→   307→                          key={stage}
+   308→   308→                          onClick={() => handleStageChange(stage)}
+   309→   309→                          className={`w-full px-4 py-2.5 text-left text-sm flex items-center gap-2 transition-colors hover:bg-secondary ${
+   310→   310→                            lead.stage === stage ? 'bg-secondary font-semibold' : ''
+   311→   311→                          }`}
+   312→   312→                        >
+   313→   313→                          <span>{config.icon}</span>
+   314→   314→                          <span className={config.color}>{config.label}</span>
+   315→   315→                        </button>
+   316→   316→                      )
+   317→   317→                    })}
+   318→   318→                  </motion.div>
+   319→   319→                )}
+   320→   320→              </AnimatePresence>
+   321→   321→            </div>
+   322→   322→
+   323→   323→            <div className="space-y-2 text-sm">
+   324→   324→              {lead.sector && <p className="text-muted-foreground">Secteur : <span className="text-foreground font-medium">{lead.sector}</span></p>}
+   325→   325→              {lead.city && <p className="text-muted-foreground flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{lead.city}</p>}
+   326→   326→              {lead.phone && <p className="text-muted-foreground flex items-center gap-1"><Phone className="w-3.5 h-3.5" />{lead.phone}</p>}
+   327→   327→              {daysSince !== null && (
+   328→   328→                <p className="text-muted-foreground flex items-center gap-1">
+   329→   329→                  <Clock className="w-3.5 h-3.5" />
+   330→   330→                  Dernier contact : {daysSince === 0 ? "Aujourd'hui" : daysSince === 1 ? 'Hier' : `il y a ${daysSince}j`}
+   331→   331→                  · {lead.contactCount} contact{lead.contactCount > 1 ? 's' : ''}
+   332→   332→                </p>
+   333→   333→              )}
+   334→   334→            </div>
+   335→   335→
+   336→   336→            {/* AI Suggestion */}
+   337→   337→            {lead.aiSuggestion && (() => {
+   338→   338→              const parsed = parseStoredSuggestion(lead.aiSuggestion)
+   339→   339→              // Don't render this block for follow-up plans — they're shown in
+   340→   340→              // the dedicated plan section below.
+   341→   341→              if (parsed.kind === 'plan') return null
+   342→   342→              const display = parsed.modelDisplay
+   343→   343→              const showBadge = !!display
+   344→   344→              return (
+   345→   345→                <div className="mt-4 p-3 rounded-xl bg-[#6C3FA9]/5 border border-[#6C3FA9]/10">
+   346→   346→                  <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+   347→   347→                    <Lightbulb className="w-3.5 h-3.5 text-[#6C3FA9]" />
+   348→   348→                    <span className="text-xs font-semibold text-[#6C3FA9]">Conseil IA</span>
+   349→   349→                    {showBadge && (
+   350→   350→                      <span
+   351→   351→                        className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(parsed.modelId)}`}
+   352→   352→                        title={`Modèle IA : ${display}`}
+   353→   353→                      >
+   354→   354→                        <Cpu className="w-2.5 h-2.5" />
+   355→   355→                        Proposé par {display}
+   356→   356→                      </span>
+   357→   357→                    )}
+   358→   358→                  </div>
+   359→   359→                  <p className="text-xs text-foreground/80">{parsed.content}</p>
+   360→   360→                </div>
+   361→   361→              )
+   362→   362→            })()}
+   363→   363→          </div>
+   364→   364→        </div>
+   365→   365→      </motion.div>
+   366→   366→
+   367→   367→      {/* Action buttons */}
+   368→   368→      <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="px-5 space-y-3">
+   369→   369→        <div className="flex gap-2">
+   370→   370→          <button
+   371→   371→            onClick={() => handleGenerateDraft('whatsapp')}
+   372→   372→            disabled={aiDraftLoading}
+   373→   373→            className="flex-1 py-3.5 rounded-2xl bg-[#6C3FA9] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
+   374→   374→            style={{ minHeight: 48 }}
+   375→   375→          >
+   376→   376→            <Zap className="w-4 h-4" />
+   377→   377→            Message IA
+   378→   378→          </button>
+   379→   379→          <button
+   380→   380→            onClick={() => handleGenerateDraft('appel')}
+   381→   381→            disabled={aiDraftLoading}
+   382→   382→            className="flex-1 py-3.5 rounded-2xl bg-[#2EC4B6] text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-[0.98] disabled:opacity-50"
+   383→   383→            style={{ minHeight: 48 }}
+   384→   384→          >
+   385→   385→            <Zap className="w-4 h-4" />
+   386→   386→            Script appel
+   387→   387→          </button>
+   388→   388→        </div>
+   389→   389→
+   390→   390→        <div className="flex gap-2">
+   391→   391→          <button
+   392→   392→            onClick={() => handleLogAndAction('appel')}
+   393→   393→            className="flex-1 py-4 rounded-2xl bg-[#2EC4B6] text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+   394→   394→            style={{ minHeight: 56 }}
+   395→   395→          >
+   396→   396→            <Phone className="w-5 h-5" />
+   397→   397→            Appeler
+   398→   398→          </button>
+   399→   399→          <button
+   400→   400→            onClick={() => handleLogAndAction('whatsapp')}
+   401→   401→            className="flex-1 py-4 rounded-2xl bg-[#25D366] text-white font-bold text-base flex items-center justify-center gap-2 shadow-lg transition-all active:scale-[0.98]"
+   402→   402→            style={{ minHeight: 56 }}
+   403→   403→          >
+   404→   404→            <MessageCircle className="w-5 h-5" />
+   405→   405→            WhatsApp
+   406→   406→          </button>
+   407→   407→        </div>
+   408→   408→      </motion.div>
+   409→   409→
+   410→   410→      {/* AI Draft panel */}
+   411→   411→      <AnimatePresence>
+   412→   412→        {showAiDraft && (
+   413→   413→          <motion.div
+   414→   414→            initial={{ opacity: 0, height: 0 }}
+   415→   415→            animate={{ opacity: 1, height: 'auto' }}
+   416→   416→            exit={{ opacity: 0, height: 0 }}
+   417→   417→            className="px-5 mt-4 overflow-hidden"
+   418→   418→          >
+   419→   419→            <div className="bg-card rounded-2xl border border-[#6C3FA9]/20 shadow-lg overflow-hidden">
+   420→   420→              <div className="px-4 py-3 bg-[#6C3FA9]/5 flex items-center justify-between flex-wrap gap-2">
+   421→   421→                <div className="flex items-center gap-2">
+   422→   422→                  <Lightbulb className="w-4 h-4 text-[#6C3FA9]" />
+   423→   423→                  <span className="text-sm font-semibold text-[#6C3FA9]">
+   424→   424→                    Brouillon IA {aiDraftLoading ? '...' : `(${aiChannel})`}
+   425→   425→                  </span>
+   426→   426→                  {aiModel && !aiDraftLoading && (
+   427→   427→                    <span
+   428→   428→                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(aiModel)}`}
+   429→   429→                      title={`Modèle IA : ${modelDisplayName(aiModel)}`}
+   430→   430→                    >
+   431→   431→                      <Cpu className="w-2.5 h-2.5" />
+   432→   432→                      Proposé par {modelDisplayName(aiModel)}
+   433→   433→                    </span>
+   434→   434→                  )}
+   435→   435→                </div>
+   436→   436→                <div className="flex items-center gap-2">
+   437→   437→                  <button
+   438→   438→                    onClick={handleCopyDraft}
+   439→   439→                    disabled={!aiDraft}
+   440→   440→                    className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center"
+   441→   441→                  >
+   442→   442→                    {copied ? <Check className="w-4 h-4 text-[#4CAF50]" /> : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
+   443→   443→                  </button>
+   444→   444→                  <button
+   445→   445→                    onClick={() => setShowAiDraft(false)}
+   446→   446→                    className="text-xs text-muted-foreground"
+   447→   447→                  >
+   448→   448→                    Fermer
+   449→   449→                  </button>
+   450→   450→                </div>
+   451→   451→              </div>
+   452→   452→              <div className="p-4">
+   453→   453→                {aiDraftLoading ? (
+   454→   454→                  <div className="space-y-2">
+   455→   455→                    <div className="h-4 w-full rounded skeleton-shimmer" />
+   456→   456→                    <div className="h-4 w-3/4 rounded skeleton-shimmer" />
+   457→   457→                    <div className="h-4 w-1/2 rounded skeleton-shimmer" />
+   458→   458→                  </div>
+   459→   459→                ) : (
+   460→   460→                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{aiDraft}</p>
+   461→   461→                )}
+   462→   462→              </div>
+   463→   463→            </div>
+   464→   464→          </motion.div>
+   465→   465→        )}
+   466→   466→      </AnimatePresence>
+   467→   467→
+   468→   468→      {/* AI Follow-Up Plan — hierarchical timeline */}
+   469→   469→      <div className="px-5 mt-6">
+   470→   470→        <div className="flex items-center justify-between mb-3">
+   471→   471→          <div className="flex items-center gap-2">
+   472→   472→            <Sparkles className="w-4 h-4 text-[#FF7B54]" />
+   473→   473→            <h3 className="text-sm font-semibold text-muted-foreground">Plan de suivi IA</h3>
+   474→   474→          </div>
+   475→   475→          {plan && (
+   476→   476→            <span
+   477→   477→              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${modelBadgeColor(plan.model)}`}
+   478→   478→              title={`Modèle IA : ${modelDisplayName(plan.model)}`}
+   479→   479→            >
+   480→   480→              <Cpu className="w-2.5 h-2.5" />
+   481→   481→              {plan.stages.length} étapes · Proposé par {modelDisplayName(plan.model)}
+   482→   482→            </span>
+   483→   483→          )}
+   484→   484→        </div>
+   485→   485→
+   486→   486→        {!plan ? (
+   487→   487→          <motion.div
+   488→   488→            initial={{ opacity: 0, y: 10 }}
+   489→   489→            animate={{ opacity: 1, y: 0 }}
+   490→   490→            className="bg-gradient-to-br from-[#FF7B54]/8 to-[#6C3FA9]/8 rounded-2xl border border-[#FF7B54]/20 p-4"
+   491→   491→          >
+   492→   492→            <div className="flex items-start gap-3">
+   493→   493→              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#FF7B54] to-[#6C3FA9] flex items-center justify-center shrink-0">
+   494→   494→                <Calendar className="w-5 h-5 text-white" />
+   495→   495→              </div>
+   496→   496→              <div className="flex-1 min-w-0">
+   497→   497→                <p className="text-sm font-semibold text-foreground">
+   498→   498→                  Planifiez le suivi de ce lead
+   499→   499→                </p>
+   500→   500→                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+   501→   501→                  L'IA génère un plan hiérarchisé en 4-5 étapes (J+1, J+3, J+7, J+14, J+30) avec scripts prêts à envoyer, conseils tactiques, et notifications intelligentes programmées automatiquement.
+   502→   502→                </p>
+   503→   503→                <button
+   504→   504→                  onClick={handleGeneratePlan}
+   505→   505→                  disabled={planLoading}
+   506→   506→                  className="mt-3 w-full py-2.5 rounded-xl procible-gradient text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md transition-all active:scale-95 disabled:opacity-50"
+   507→   507→                >
+   508→   508→                  {planLoading ? (
+   509→   509→                    <>
+   510→   510→                      <Loader2 className="w-4 h-4 animate-spin" />
+   511→   511→                      Génération en cours...
+   512→   512→                    </>
+   513→   513→                  ) : (
+   514→   514→                    <>
+   515→   515→                      <Sparkles className="w-4 h-4" />
+   516→   516→                      Générer le plan
+   517→   517→                      <span className="ml-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/15 text-[11px]">
+   518→   518→                        <Coins className="w-3 h-3" />
+   519→   519→                        3
+   520→   520→                      </span>
+   521→   521→                    </>
+   522→   522→                  )}
+   523→   523→                </button>
+   524→   524→                {credits < 3 && (
+   525→   525→                  <p className="text-[11px] text-[#EF4444] mt-2 text-center">
+   526→   526→                    Solde insuffisant ({credits} crédits) · 1 gratuit/jour
+   527→   527→                  </p>
+   528→   528→                )}
+   529→   529→              </div>
+   530→   530→            </div>
+   531→   531→          </motion.div>
+   532→   532→        ) : (
+   533→   533→          <motion.div
+   534→   534→            initial={{ opacity: 0, y: 10 }}
+   535→   535→            animate={{ opacity: 1, y: 0 }}
+   536→   536→            className="space-y-3"
+   537→   537→          >
+   538→   538→            {/* Strategy summary */}
+   539→   539→            <div className="bg-[#6C3FA9]/5 rounded-2xl border border-[#6C3FA9]/20 p-3.5">
+   540→   540→              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+   541→   541→                <Lightbulb className="w-3.5 h-3.5 text-[#6C3FA9]" />
+   542→   542→                <span className="text-xs font-semibold text-[#6C3FA9]">Stratégie</span>
+   543→   543→                <span
+   544→   544→                  className={`ml-auto inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${modelBadgeColor(plan.model)}`}
+   545→   545→                  title={`Modèle IA : ${modelDisplayName(plan.model)}`}
+   546→   546→                >
+   547→   547→                  <Cpu className="w-2.5 h-2.5" />
+   548→   548→                  Proposé par {modelDisplayName(plan.model)}
+   549→   549→                </span>
+   550→   550→              </div>
+   551→   551→              <p className="text-xs text-foreground/80 leading-relaxed">{plan.strategy}</p>
+   552→   552→            </div>
+   553→   553→
+   554→   554→            {/* Timeline stages */}
+   555→   555→            <div className="relative pl-5">
+   556→   556→              {/* Vertical line */}
+   557→   557→              <div className="absolute left-2 top-2 bottom-2 w-0.5 bg-gradient-to-b from-[#FF7B54] via-[#6C3FA9] to-[#FF7B54]/20" />
+   558→   558→
+   559→   559→              {plan.stages.map((stage, idx) => {
+   560→   560→                const isCompleted = completedStages.has(stage.step)
+   561→   561→                const isExpanded = expandedStage === stage.step
+   562→   562→                const chCfg = channelConfig[stage.channel] || channelConfig.whatsapp
+   563→   563→                const ChannelIcon = chCfg.icon
+   564→   564→                const isLast = idx === plan.stages.length - 1
+   565→   565→                return (
+   566→   566→                  <motion.div
+   567→   567→                    key={stage.step}
+   568→   568→                    initial={{ opacity: 0, x: -8 }}
+   569→   569→                    animate={{ opacity: 1, x: 0 }}
+   570→   570→                    transition={{ delay: idx * 0.05 }}
+   571→   571→                    className={`relative mb-3 ${isLast ? 'mb-0' : ''}`}
+   572→   572→                  >
+   573→   573→                    {/* Timeline dot */}
+   574→   574→                    <div
+   575→   575→                      className={`absolute -left-[14px] top-3 w-3 h-3 rounded-full border-2 border-background ${
+   576→   576→                        isCompleted ? 'bg-[#4CAF50]' : 'bg-[#FF7B54]'
+   577→   577→                      }`}
+   578→   578→                    />
+   579→   579→
+   580→   580→                    {/* Stage card */}
+   581→   581→                    <div
+   582→   582→                      className={`rounded-2xl border overflow-hidden transition-all ${
+   583→   583→                        isCompleted
+   584→   584→                          ? 'bg-[#4CAF50]/5 border-[#4CAF50]/20'
+   585→   585→                          : isExpanded
+   586→   586→                          ? 'bg-card border-[#FF7B54]/30 shadow-md'
+   587→   587→                          : 'bg-card border-border/40'
+   588→   588→                      }`}
+   589→   589→                    >
+   590→   590→                      {/* Stage header (clickable to expand) */}
+   591→   591→                      <button
+   592→   592→                        onClick={() => setExpandedStage(isExpanded ? null : stage.step)}
+   593→   593→                        className="w-full flex items-center gap-3 p-3 text-left"
+   594→   594→                      >
+   595→   595→                        <div className={`w-9 h-9 rounded-xl ${chCfg.bg} flex items-center justify-center shrink-0`}>
+   596→   596→                          <ChannelIcon className={`w-4 h-4 ${chCfg.color}`} />
+   597→   597→                        </div>
+   598→   598→                        <div className="flex-1 min-w-0">
+   599→   599→                          <div className="flex items-center gap-2">
+   600→   600→                            <span className="text-xs font-bold text-foreground">Étape {stage.step}</span>
+   601→   601→                            <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded-full">
+   602→   602→                              J+{stage.dayOffset}
+   603→   603→                            </span>
+   604→   604→                            <span className={`text-[10px] font-medium ${chCfg.color}`}>{chCfg.label}</span>
+   605→   605→                            {isCompleted && (
+   606→   606→                              <Check className="w-3.5 h-3.5 text-[#4CAF50]" />
+   607→   607→                            )}
+   608→   608→                          </div>
+   609→   609→                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{stage.objective}</p>
+   610→   610→                        </div>
+   611→   611→                        <ChevronRight
+   612→   612→                          className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${
+   613→   613→                            isExpanded ? 'rotate-90' : ''
+   614→   614→                          }`}
+   615→   615→                        />
+   616→   616→                      </button>
+   617→   617→
+   618→   618→                      {/* Expanded script + tips */}
+   619→   619→                      <AnimatePresence initial={false}>
+   620→   620→                        {isExpanded && (
+   621→   621→                          <motion.div
+   622→   622→                            initial={{ height: 0, opacity: 0 }}
+   623→   623→                            animate={{ height: 'auto', opacity: 1 }}
+   624→   624→                            exit={{ height: 0, opacity: 0 }}
+   625→   625→                            transition={{ duration: 0.2 }}
+   626→   626→                            className="overflow-hidden"
+   627→   627→                          >
+   628→   628→                            <div className="px-3 pb-3 space-y-2.5">
+   629→   629→                              {/* Script preview */}
+   630→   630→                              <div className="bg-secondary/50 rounded-xl p-2.5">
+   631→   631→                                <div className="flex items-center justify-between mb-1.5">
+   632→   632→                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Script prêt</span>
+   633→   633→                                  <button
+   634→   634→                                    onClick={() => handleCopyStageScript(stage)}
+   635→   635→                                    className="text-[10px] text-[#FF7B54] font-medium flex items-center gap-1 hover:text-[#FF7B54]/70 transition-colors"
+   636→   636→                                  >
+   637→   637→                                    {copiedStage === stage.step ? (
+   638→   638→                                      <>
+   639→   639→                                        <Check className="w-3 h-3" />
+   640→   640→                                        Copié
+   641→   641→                                      </>
+   642→   642→                                    ) : (
+   643→   643→                                      <>
+   644→   644→                                        <Copy className="w-3 h-3" />
+   645→   645→                                        Copier
+   646→   646→                                      </>
+   647→   647→                                    )}
+   648→   648→                                  </button>
+   649→   649→                                </div>
+   650→   650→                                <p className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap">{stage.script}</p>
+   651→   651→                              </div>
+   652→   652→
+   653→   653→                              {/* Tips */}
+   654→   654→                              {stage.tips.length > 0 && (
+   655→   655→                                <div>
+   656→   656→                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">Conseils</p>
+   657→   657→                                  <ul className="space-y-1">
+   658→   658→                                    {stage.tips.map((tip, i) => (
+   659→   659→                                      <li key={i} className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+   660→   660→                                        <span className="text-[#FF7B54] mt-0.5">•</span>
+   661→   661→                                        <span className="leading-relaxed">{tip}</span>
+   662→   662→                                      </li>
+   663→   663→                                    ))}
+   664→   664→                                  </ul>
+   665→   665→                                </div>
+   666→   666→                              )}
+   667→   667→
+   668→   668→                              {/* Execute button */}
+   669→   669→                              {!isCompleted && (
+   670→   670→                                <button
+   671→   671→                                  onClick={() => handleExecuteStage(stage)}
+   672→   672→                                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#FF7B54] to-[#FFB347] text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-all active:scale-95"
+   673→   673→                                >
+   674→   674→                                  <ChannelIcon className="w-3.5 h-3.5" />
+   675→   675→                                  {stage.channel === 'appel' ? 'Appeler maintenant' : stage.channel === 'whatsapp' || stage.channel === 'sms' ? 'Envoyer sur WhatsApp' : stage.channel === 'email' ? 'Envoyer l\'email' : 'Marquer comme fait'}
+   676→   676→                                </button>
+   677→   677→                              )}
+   678→   678→                              {isCompleted && (
+   679→   679→                                <div className="text-center text-[11px] text-[#4CAF50] font-medium py-1">
+   680→   680→                                  ✓ Étape effectuée
+   681→   681→                                </div>
+   682→   682→                              )}
+   683→   683→                            </div>
+   684→   684→                          </motion.div>
+   685→   685→                        )}
+   686→   686→                      </AnimatePresence>
+   687→   687→                    </div>
+   688→   688→                  </motion.div>
+   689→   689→                )
+   690→   690→              })}
+   691→   691→            </div>
+   692→   692→
+   693→   693→            {/* Regenerate plan */}
+   694→   694→            <button
+   695→   695→              onClick={handleGeneratePlan}
+   696→   696→              disabled={planLoading}
+   697→   697→              className="w-full py-2 rounded-xl bg-secondary text-muted-foreground text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-secondary/70 transition-colors"
+   698→   698→            >
+   699→   699→              {planLoading ? (
+   700→   700→                <>
+   701→   701→                  <Loader2 className="w-3 h-3 animate-spin" />
+   702→   702→                  Régénération...
+   703→   703→                </>
+   704→   704→              ) : (
+   705→   705→                <>
+   706→   706→                  <Zap className="w-3 h-3" />
+   707→   707→                  Régénérer le plan
+   708→   708→                </>
+   709→   709→              )}
+   710→   710→            </button>
+   711→   711→          </motion.div>
+   712→   712→        )}
+   713→   713→      </div>
+   714→   714→
+   715→   715→      {/* Contact History Timeline */}
+   716→   716→      <div className="px-5 mt-4">
+   717→   717→        <h3 className="text-sm font-semibold text-muted-foreground mb-3">Historique ({contacts.length})</h3>
+   718→   718→        {contacts.length === 0 ? (
+   719→   719→          <p className="text-xs text-muted-foreground text-center py-4">Aucun contact enregistré</p>
+   720→   720→        ) : (
+   721→   721→          <div className="space-y-2">
+   722→   722→            {contacts.slice(0, 5).map((contact) => {
+   723→   723→              const typeConfig = contactTypeIcons[contact.type] || contactTypeIcons.note
+   724→   724→              const IconComp = typeConfig.icon
+   725→   725→              return (
+   726→   726→                <div key={contact.id} className="flex items-start gap-3 p-3 bg-card rounded-xl border border-border/30">
+   727→   727→                  <div className={`w-8 h-8 rounded-lg ${contact.type === 'appel' ? 'bg-[#2EC4B6]/10' : contact.type === 'whatsapp' ? 'bg-[#25D366]/10' : 'bg-secondary'} flex items-center justify-center shrink-0`}>
+   728→   728→                    <IconComp className={`w-4 h-4 ${typeConfig.color}`} />
+   729→   729→                  </div>
+   730→   730→                  <div className="flex-1 min-w-0">
+   731→   731→                    <div className="flex items-center gap-2">
+   732→   732→                      <span className="text-xs font-semibold">{typeConfig.label}</span>
+   733→   733→                      {contact.aiGenerated && (
+   734→   734→                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#6C3FA9]/10 text-[#6C3FA9]">IA</span>
+   735→   735→                      )}
+   736→   736→                    </div>
+   737→   737→                    {contact.content && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{contact.content}</p>}
+   738→   738→                    <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+   739→   739→                      {new Date(contact.createdAt).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+   740→   740→                    </p>
+   741→   741→                  </div>
+   742→   742→                </div>
+   743→   743→              )
+   744→   744→            })}
+   745→   745→          </div>
+   746→   746→        )}
+   747→   747→      </div>
+   748→   748→    </div>
+   749→   749→  )
+   750→   750→}
+   751→   751→
